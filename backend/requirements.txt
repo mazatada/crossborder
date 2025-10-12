@@ -1,0 +1,8 @@
+flask==3.0.3
+flask-cors==4.0.0
+sqlalchemy==2.0.34
+psycopg[binary]==3.2.1
+pydantic==2.8.2
+pyyaml==6.0.2
+reportlab==4.2.2
+flask-sqlalchemy==3.1.1

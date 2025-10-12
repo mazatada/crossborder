@@ -1,0 +1,17 @@
+- id: hs19_bakery_wheat_baked
+  when:
+    all:
+      - contains_any:
+          ingredient_ids: ["ing_wheat_flour"]
+      - process_any: ["baked", "roasted"]
+  then:
+    heading_hints: ["1905.90"]
+    rationale: ["wheat flour present", "baked product"]
+
+- id: hs21_mixes_preparations
+  when:
+    any:
+      - process_any: ["mix", "powder"]
+  then:
+    heading_hints: ["2106.90"]
+    rationale: ["miscellaneous edible preparations"]
