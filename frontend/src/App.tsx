@@ -1,23 +1,26 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import HS from "./pages/HS"; import PN from "./pages/PN"; import Pack from "./pages/Pack";
-import { AppBar, Toolbar, Button, Container } from "@mui/material";
+import { Container, Tab, Tabs, Box } from '@mui/material';
+import { useEffect, useState } from 'react';
+import HSPage from './pages/HSPage';
+import PackPage from './pages/PackPage';
+import PNPage from './pages/PNPage';
 
-export default function App(){
+export default function App() {
+  const [tab, setTab] = useState(0);
+  const [health, setHealth] = useState('checking...');
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_BASE}/v1/health`)
+      .then(r => r.json()).then(j => setHealth(`status=${j.status}`))
+      .catch(()=> setHealth('failed'));
+  }, []);
   return (
-    <BrowserRouter>
-      <AppBar position="static"><Toolbar>
-        <Button color="inherit" component={Link} to="/hs">HS</Button>
-        <Button color="inherit" component={Link} to="/pn">PN</Button>
-        <Button color="inherit" component={Link} to="/pack">Pack</Button>
-      </Toolbar></AppBar>
-      <Container maxWidth="lg" sx={{mt:2}}>
-        <Routes>
-          <Route path="/hs" element={<HS/>}/>
-          <Route path="/pn" element={<PN/>}/>
-          <Route path="/pack" element={<Pack/>}/>
-          <Route path="*" element={<HS/>}/>
-        </Routes>
-      </Container>
-    </BrowserRouter>
+    <Container sx={{ py:3 }}>
+      <Tabs value={tab} onChange={(_,v)=>setTab(v)} sx={{ mb:1 }}>
+        <Tab label="HS" /><Tab label="Pack" /><Tab label="PN" />
+      </Tabs>
+      <Box sx={{ mb:2, fontSize: 13, color: 'text.secondary' }}>Backend health: {health}</Box>
+      <Box role="tabpanel" hidden={tab!==0}><HSPage/></Box>
+      <Box role="tabpanel" hidden={tab!==1}><PackPage/></Box>
+      <Box role="tabpanel" hidden={tab!==2}><PNPage/></Box>
+    </Container>
   );
 }

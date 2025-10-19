@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/product.json",
+  "type": "object",
+  "required": [
+    "name",
+    "category",
+    "ingredients"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "category": {
+      "enum": [
+        "confectionery",
+        "processed_food"
+      ]
+    },
+    "process": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "origin_country": {
+      "type": "string",
+      "pattern": "^[A-Z]{2}$"
+    },
+    "ingredients": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/defs/IngredientRef"
+      }
+    },
+    "label_media_id": {
+      "type": "string"
+    }
+  },
+  "defs": {
+    "IngredientRef": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "display_ja": {
+          "type": "string"
+        },
+        "display_en": {
+          "type": "string"
+        },
+        "pct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

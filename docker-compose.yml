@@ -2,32 +2,41 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: ${DB_USER:-cb}
-      POSTGRES_PASSWORD: ${DB_PASS:-cbpass}
-      POSTGRES_DB: ${DB_NAME:-cbdb}
-    ports: ["5432:5432"]
-    volumes: [db_data:/var/lib/postgresql/data]
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     healthcheck:
-      test: ["CMD-SHELL","pg_isready -U ${DB_USER:-cb} -d ${DB_NAME:-cbdb} -h localhost"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
-      retries: 12
+      retries: 20
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
 
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     depends_on:
       db:
         condition: service_healthy
     environment:
-      FLASK_ENV: development
-      DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
-      SECRET_KEY: devsecret
-    volumes:
-      - ./backend:/app
+      SQLALCHEMY_DATABASE_URI: ${SQLALCHEMY_DATABASE_URI}
+      API_KEYS=dev123: # 環境変数でAPIキーを設定
+
     ports:
       - "5001:5000"
-    command: >
-      sh -lc "flask --app app.factory run --host=0.0.0.0 --port=5000 --debug"
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "python - <<'PY'\nimport urllib.request;urllib.request.urlopen('http://localhost:5000/v1/health').read();print('ok')\nPY"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+
 
 volumes:
-  db_data: {}
+  db_data:
+

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from ..util.validate import require_json
-from ..models import Job, Artifact, Audit
+from ..models import Job, AuditEvent, MediaBlob  # 必要なものだけに可
 from ..db import db
 import uuid, hashlib, json
 bp = Blueprint("docs", __name__)

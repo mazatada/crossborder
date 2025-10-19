@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Crossborder EC Automation API
+  version: 1.0.0
+  description: >
+    越境EC業務の法規対応自動化API（MVP）。ジョブ基盤・監査・メディア配布を含む。
+servers:
+  - url: http://localhost:5001
+    description: Local Dev
+
+tags:
+  - name: Misc
+  - name: Classify
+  - name: Docs
+  - name: PN
+  - name: Jobs
+  - name: Audit
+  - name: Media
+
+paths:
+  /v1/health:
+    get:
+      tags: [Misc]
+      summary: Health check
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { status: {type: string}, ts: {type: string, format: date-time} }
+
+  /v1/version:
+    get:
+      tags: [Misc]
+      summary: Version info
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version: { type: string }
+                  commit:  { type: string }
+
+  /v1/classify/hs:
+    post:
+      tags: [Classify]
+      summary: HS分類
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRequest' }
+      responses:
+        '200':
+          description: HS候補と根拠
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSResponse' }
+        '400':
+          description: 必須欠落
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error400' } } }
+        '422':
+          description: バリデーション違反
+          content: { application/json: { schema: { $ref: '#/components/schemas/Violation422' } } }
+
+  /v1/docs/clearance-pack:
+    post:
+      tags: [Docs]
+      summary: 通関書類パック生成（非同期）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PackRequest' }
+      responses:
+        '202':
+          description: 受付。ジョブIDを返す
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobAccepted' }
+        '400':
+          description: 必須欠落
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error400' } } }
+        '422':
+          description: バリデーション違反（例：UoM不一致）
+          content: { application/json: { schema: { $ref: '#/components/schemas/Violation422' } } }
+
+  /v1/fda/prior-notice:
+    post:
+      tags: [PN]
+      summary: Prior Notice 申請（非同期）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PNRequest' }
+      responses:
+        '202':
+          description: 受付。ジョブIDを返す
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/JobAccepted' }
+        '400':
+          description: 必須欠落
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error400' } } }
+        '422':
+          description: バリデーション違反
+          content: { application/json: { schema: { $ref: '#/components/schemas/Violation422' } } }
+
+  /v1/jobs/{job_id}:
+    get:
+      tags: [Jobs]
+      summary: ジョブ状態の参照
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 現在のジョブ状態
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Job' }
+        '404':
+          description: 不明なジョブ
+
+  /v1/media/{media_id}:
+    get:
+      tags: [Media]
+      summary: 生成物のダウンロード
+      parameters:
+        - in: path
+          name: media_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: バイナリ
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: 不明なメディア
+
+  /v1/audit/trace/{trace_id}:
+    get:
+      tags: [Audit]
+      summary: 監査トレースの取得
+      parameters:
+        - in: path
+          name: trace_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: イベント一覧
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/AuditEvent' }
+
+components:
+  schemas:
+    HSRequest:
+      type: object
+      required: [product]
+      properties:
+        product:
+          type: object
+          properties:
+            name:        { type: string }
+            category:    { type: string }
+            process:     { type: array, items: { type: string } }
+            ingredients: { type: array, items: { type: object, properties: { id: {type: string} }, required: [id] } }
+
+    HSResponse:
+      type: object
+      required: [hs_candidates, duty_rate, risk_flags, quota_applicability, review_required]
+      properties:
+        hs_candidates:
+          type: array
+          items:
+            type: object
+            properties:
+              code:          { type: string }
+              confidence:    { type: number, format: float }
+              rationale:     { type: array, items: { type: string } }
+              required_uom:  { type: string }
+        duty_rate:
+          type: object
+          properties:
+            ad_valorem_pct: { type: number }
+            additional:     { type: array, items: { type: string } }
+        risk_flags:
+          type: object
+          properties:
+            ad_cvd:       { type: boolean }
+            import_alert: { type: boolean }
+        quota_applicability: { type: string }
+        review_required:     { type: boolean }
+
+    PackRequest:
+      type: object
+      required: [traceId, hs_code, required_uom, invoice_uom]
+      properties:
+        traceId:       { type: string }
+        hs_code:       { type: string }
+        required_uom:  { type: string }
+        invoice_uom:   { type: string }
+        invoice_payload:
+          type: object
+          properties:
+            number: { type: string }
+            qty:    { type: number }
+            uom:    { type: string }
+
+    PNRequest:
+      type: object
+      required: [traceId, product, logistics, importer, consignee]
+      properties:
+        traceId: { type: string }
+        product:
+          type: object
+          required: [name, description, hs_code, origin_country]
+          properties:
+            name:            { type: string }
+            description:     { type: string }
+            hs_code:         { type: string }
+            origin_country:  { type: string, description: "ISO 3166-1 alpha-2" }
+        logistics:
+          type: object
+          required: [mode, carrier, port_of_entry, arrival_date]
+          properties:
+            mode:         { type: string, enum: [AIR, SEA, EXPRESS] }
+            carrier:      { type: string }
+            port_of_entry:{ type: string, description: "IATAまたはUN/LOCODE" }
+            arrival_date: { type: string, format: date }
+        importer: { type: object, properties: { name: { type: string } }, required: [name] }
+        consignee:{ type: object, properties: { name: { type: string } }, required: [name] }
+        label_media_id: { type: string }
+
+    JobAccepted:
+      type: object
+      properties:
+        job_id: { type: string }
+
+    Artifact:
+      type: object
+      properties:
+        type:    { type: string }
+        media_id:{ type: string }
+        size:    { type: integer }
+        sha256:  { type: string }
+
+    Job:
+      type: object
+      properties:
+        type:     { type: string, enum: [pack, pn] }
+        status:   { type: string, enum: [queued, running, submitted, accepted, rejected, completed, error] }
+        trace_id: { type: string }
+        artifacts:
+          type: array
+          items: { $ref: '#/components/schemas/Artifact' }
+        error: {}
+
+    AuditEvent:
+      type: object
+      properties:
+        event:   { type: string }
+        ts:      { type: string, format: date-time }
+        payload: {}
+
+    Error400:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            class:    { type: string, example: "missing_required" }
+            message:  { type: string }
+            field:    { type: string }
+            severity: { type: string, example: "block" }
+      example:
+        error: { class: missing_required, field: "product.description", message: "required", severity: "block" }
+
+    Violation422:
+      type: object
+      properties:
+        violations:
+          type: array
+          items:
+            type: object
+            properties:
+              field:   { type: string }
+              rule:    { type: string }
+              message: { type: string }
+
+security: []   # 将来: bearerAuth 等を追加予定

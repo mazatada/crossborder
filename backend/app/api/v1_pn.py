@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from ..util.validate import require_json, ensure_required
-from ..models import Job, Artifact, PNSubmission, Audit
+from ..models import Job, PNSubmission, AuditEvent, MediaBlob
+# ↑ 実際に使っていないものがあれば残さなくてOK（例：MediaBlobを使わないなら削除）
 from ..db import db
 import uuid, hashlib, json
 from datetime import datetime, timedelta

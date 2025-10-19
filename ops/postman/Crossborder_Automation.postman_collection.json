@@ -1,0 +1,56 @@
+{
+  "info": {
+    "name": "Crossborder Automation",
+    "_postman_id": "cb-spec-v1",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/health"
+      }
+    },
+    {
+      "name": "HS Classify",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"product\": {\"name\": \"Dorayaki\", \"category\": \"confectionery\", \"process\": [\"baked\"], \"ingredients\": [{\"id\": \"ing_wheat_flour\"}]}}"
+        },
+        "url": "{{baseUrl}}/classify/hs"
+      }
+    },
+    {
+      "name": "Docs Pack",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"traceId\": \"LAW-TEST\", \"hs_code\": \"1905.90\", \"required_uom\": \"kg\", \"invoice_uom\": \"kg\"}"
+        },
+        "url": "{{baseUrl}}/docs/clearance-pack"
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5001/v1"
+    }
+  ]
+}
