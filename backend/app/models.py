@@ -1,23 +1,25 @@
+# backend/app/models.py
 from datetime import datetime
 from .db import db
 
 class Job(db.Model):
     __tablename__ = "jobs"
-
-    # DB側は BIGINT IDENTITY。SQLAlchemy 側も BigInteger + autoincrement に揃える
-    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
-    type = db.Column(db.String(16), nullable=False)
+    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)  # ← ここが超重要
+    type = db.Column(db.String(16), nullable=False)         # "pack" | "pn" | etc
     status = db.Column(db.String(16), nullable=False, index=True)
     trace_id = db.Column(db.String(64), index=True)
     error = db.Column(db.JSON, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # 追加済みの4カラム
+    # 追加済みのカラム（migrations で作ったやつ）
     attempts = db.Column(db.Integer, nullable=False, default=0)
     next_run_at = db.Column(db.DateTime, nullable=True)
     payload_json = db.Column(db.JSON, nullable=True)
     result_json = db.Column(db.JSON, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
 
 
 class MediaBlob(db.Model):
@@ -30,7 +32,6 @@ class MediaBlob(db.Model):
 
 Artifact = MediaBlob
 
-
 class AuditEvent(db.Model):
     __tablename__ = "audit_events"
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -38,7 +39,6 @@ class AuditEvent(db.Model):
     event = db.Column(db.String(64), nullable=False)
     payload = db.Column(db.JSON, nullable=True)
     ts = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
 
 class PNSubmission(db.Model):
     __tablename__ = "pn_submissions"
@@ -50,7 +50,6 @@ class PNSubmission(db.Model):
     consignee = db.Column(db.JSON, nullable=False)
     label_media_id = db.Column(db.String(128), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-
 
 class DocumentPackage(db.Model):
     __tablename__ = "document_packages"
