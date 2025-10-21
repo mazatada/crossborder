@@ -37,6 +37,6 @@ def create_app():
     app.register_blueprint(bp_audit,    url_prefix="/v1")
 
     # APIキー保護（health/version/static は免除）
-    install_api_key_protection(app, exempt_prefixes=["/v1/health", "/v1/version", "/static"])
+    install_api_key_protection(app, exempt_prefixes=["/v1/health", "/v1/version"])
 
     return app
