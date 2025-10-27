@@ -1,0 +1,107 @@
+# app/jobs/cli.py
+import os
+import time
+import json
+import logging
+import argparse
+from sqlalchemy import create_engine, text
+# 先頭付近の import に追加
+from sqlalchemy import create_engine, text, bindparam
+from sqlalchemy.dialects.postgresql import JSONB
+
+def setup_logging(name: str):
+    logging.basicConfig(
+        level=os.getenv("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s [" + name + "] %(message)s",
+        force=True,
+    )
+    return logging.getLogger(name)
+
+def _get_engine():
+    uri = os.getenv("DB_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
+    if not uri:
+        raise RuntimeError("DB_URL / SQLALCHEMY_DATABASE_URI が未設定です")
+    return create_engine(uri, future=True, pool_pre_ping=True)
+
+def scheduler_loop():
+    log = setup_logging("scheduler")
+    eng = _get_engine()
+    interval = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
+
+    log.info("Scheduler started. interval=%s", interval)
+    while True:
+        try:
+            with eng.begin() as conn:
+                now = conn.execute(text("select now()")).scalar()
+                log.info("tick now=%s", now)
+                # ここに必要ならスケジューリング処理を追加
+        except Exception as e:
+            log.exception("scheduler loop error: %s", e)
+        time.sleep(interval)
+
+def worker_loop():
+    log = setup_logging("worker")
+    eng = _get_engine()
+    vt = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))
+
+    log.info("Worker started. visibility_timeout=%s", vt)
+    while True:
+        try:
+            with eng.begin() as conn:
+                # 期限到来ジョブを1件 “つかむ”
+                row = conn.execute(text("""
+                    UPDATE public.jobs
+                       SET status='running',
+                           attempts=attempts+1,
+                           updated_at=now()
+                     WHERE id = (
+                        SELECT id FROM public.jobs
+                         WHERE status='scheduled' AND next_run_at <= now()
+                         ORDER BY next_run_at, id
+                         FOR UPDATE SKIP LOCKED
+                         LIMIT 1
+                     )
+                 RETURNING id, type, payload_json
+                """)).mappings().first()
+
+                if not row:
+                    time.sleep(2)
+                    continue
+
+                jid = row["id"]
+                jtype = row["type"]
+                payload = row["payload_json"] or {}
+
+                log.info("picked job id=%s type=%s payload=%s", jid, payload.get("type", jtype), payload)
+
+                # 最小の dispatcher：echo のみ
+                if jtype == "echo":
+                    result = {"ok": True, "job_id": jid, "echo": payload, "trace_id": None}
+                else:
+                    result = {"ok": False, "job_id": jid, "error": f"unknown type {jtype}", "trace_id": None}
+
+                conn.execute(text("""
+                    UPDATE public.jobs
+                       SET status='succeeded',
+                           result_json=:result::jsonb,
+                           updated_at=now()
+                     WHERE id=:jid
+                """), {"jid": jid, "result": json.dumps(result)})
+
+                log.info("done id=%s status=succeeded", jid)
+
+        except Exception as e:
+            log.exception("worker loop error: %s", e)
+            time.sleep(2)
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cmd", choices=["scheduler", "worker"])
+    args = parser.parse_args()
+    if args.cmd == "scheduler":
+        scheduler_loop()
+    else:
+        worker_loop()
+
+if __name__ == "__main__":
+    main()

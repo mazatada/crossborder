@@ -7,3 +7,6 @@ pyyaml==6.0.2
 reportlab==4.2.2
 flask-sqlalchemy==3.1.1
 alembic
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+REQ

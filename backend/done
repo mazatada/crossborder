@@ -1,0 +1,42 @@
+from alembic import op
+
+# revision identifiers, used by Alembic.
+revision = "bootstrap_triggers_indexes"
+down_revision = None
+branch_labels = None
+depends_on = None
+
+def upgrade():
+    op.execute("""
+    -- テーブル前提: public.jobs
+    CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      NEW.updated_at := now();
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS trg_set_updated_at ON public.jobs;
+    CREATE TRIGGER trg_set_updated_at
+    BEFORE UPDATE ON public.jobs
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+    CREATE INDEX IF NOT EXISTS idx_jobs_status               ON public.jobs (status);
+    CREATE INDEX IF NOT EXISTS idx_jobs_status_created       ON public.jobs (status, created_at);
+    CREATE INDEX IF NOT EXISTS idx_jobs_next_run_at          ON public.jobs (next_run_at) WHERE status = 'scheduled';
+    CREATE INDEX IF NOT EXISTS idx_jobs_status_next          ON public.jobs (status, next_run_at);
+    CREATE INDEX IF NOT EXISTS idx_jobs_trace                ON public.jobs (trace_id);
+    """)
+
+def downgrade():
+    op.execute("""
+    DROP TRIGGER IF EXISTS trg_set_updated_at ON public.jobs;
+    DROP FUNCTION IF EXISTS set_updated_at();
+
+    DROP INDEX IF EXISTS idx_jobs_trace;
+    DROP INDEX IF EXISTS idx_jobs_status_next;
+    DROP INDEX IF EXISTS idx_jobs_next_run_at;
+    DROP INDEX IF EXISTS idx_jobs_status_created;
+    DROP INDEX IF EXISTS idx_jobs_status;
+    """)

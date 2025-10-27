@@ -1,15 +1,24 @@
-from flask import Blueprint, jsonify, request
-from ..models import Job, Artifact
-bp = Blueprint("jobs", __name__)
+from flask import Blueprint, jsonify, abort, current_app, g
+from sqlalchemy import create_engine, text
 
-@bp.get("/jobs/<job_id>")
-def get_job(job_id):
-    j = Job.query.get_or_404(job_id)
-    arts = Artifact.query.filter_by(job_id=job_id).all()
-    return jsonify({
-        "status": j.status,
-        "type": j.type,
-        "trace_id": j.trace_id,
-        "artifacts": [{"type":a.type,"media_id":a.media_id,"sha256":a.sha256,"size":a.size} for a in arts],
-        "error": j.error
-    })
+bp = Blueprint("jobs_v1", __name__)
+
+def _get_engine():
+    if not hasattr(g, "engine"):
+        uri = current_app.config.get("SQLALCHEMY_DATABASE_URI") or current_app.config.get("DATABASE_URL")
+        if not uri:
+            abort(500, description="DB URI not configured")
+        g.engine = create_engine(uri, pool_pre_ping=True, future=True)
+    return g.engine
+
+@bp.get("/jobs/<int:job_id>")
+def get_job(job_id: int):
+    engine = _get_engine()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("SELECT to_jsonb(j) AS job FROM public.jobs AS j WHERE j.id = :id"),
+            {"id": job_id},
+        ).mappings().first()
+    if not row:
+        abort(404)
+    return jsonify(row["job"])
