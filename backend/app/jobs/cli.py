@@ -1,150 +1,245 @@
-import json
-import logging
+# app/jobs/cli.py
 import os
+import sys
 import time
-from datetime import timezone
+import json
+import traceback
+import app.jobs.handlers.clearance_pack  # noqa: F401
+import app.jobs.handlers.pn_submit       # noqa: F401
+from datetime import datetime, timezone, timedelta
+from app.jobs.handlers import REGISTRY  # これが本体のレジストリ
 
-from sqlalchemy import create_engine, text, bindparam
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
-# ===== ログ設定 =====
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO"),
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-    force=True,
-)
-log_sched = logging.getLogger("scheduler")
-log_worker = logging.getLogger("worker")
+from app.db import db
+from app.models import Job
 
-
-# ===== DB エンジン =====
-def make_engine():
-    uri = os.getenv("DB_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
-    if not uri:
-        raise RuntimeError("DB_URL / SQLALCHEMY_DATABASE_URI が未設定です")
-    return create_engine(uri, future=True, pool_pre_ping=True)
+# --- ハンドラレジストリ -----------------------------------------------------
+#   REGISTRY に { "job_type": callable(payload, *, job_id, trace_id) -> dict } を登録
 
 
-# ====== Scheduler ======
+# サイドエフェクト import（@register で自動登録される想定のもの）
+# これらは存在しなくても構いません（無ければスキップされます）
+try:
+    import app.jobs.handlers.clearance_pack  # noqa: F401
+except Exception:
+    pass
+
+try:
+    import app.jobs.handlers.pn_submit  # noqa: F401
+except Exception:
+    pass
+
+def _log(**kw):
+    ...
+    print(json.dumps(kw, ensure_ascii=False), flush=True)
+
+# 起動時に登録済みハンドラ名を出して可視化（デバッグ用）
+_log(event="HANDLERS", names=sorted(REGISTRY.keys()))
+
+# echo は内蔵（互換のため）
+def _handle_echo(payload: dict, *, job_id: int, trace_id: str):
+    return {"ok": True, "job_id": job_id, "echo": payload, "trace_id": trace_id or None}
+
+
+# --- 設定値 ---------------------------------------------------------------
+WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "4"))
+SCHEDULER_INTERVAL_SEC = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
+VISIBILITY_TIMEOUT_SEC = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))  # 30分
+MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "5"))
+
+# --- ユーティリティ ---------------------------------------------------------
+def _now_utc():
+    return datetime.now(timezone.utc)
+
+def _log(**kw):
+    # 最低限の構造化ログ（stdout）
+    kw.setdefault("ts", _now_utc().isoformat())
+    print(json.dumps(kw, ensure_ascii=False), flush=True)
+
+def _db_session():
+    # フラスクのアプリコンテキスト経由で db.session を使う想定
+    from app.factory import create_app
+    app = create_app()
+    # アプリコンテキストが必要
+    return app.app_context(), db.session
+
+# --- スケジューラ -----------------------------------------------------------
+def scheduler_tick(session):
+    """
+    - next_run_at に到達した retrying を queued へ戻す
+    - visibility timeout を超えた running を retrying へ戻す（簡易）
+    """
+    try:
+        # retrying -> queued
+        n1 = session.execute(text("""
+            UPDATE jobs
+            SET status = 'queued', updated_at = now()
+            WHERE status = 'retrying'
+              AND (next_run_at IS NULL OR next_run_at <= now());
+        """)).rowcount
+
+        # visibility timeout: running で updated_at が古すぎるものを retrying に
+        n2 = session.execute(text(f"""
+            UPDATE jobs
+            SET status = 'retrying', next_run_at = now() + interval '30 seconds', updated_at = now()
+            WHERE status = 'running'
+              AND updated_at <= (now() - interval '{VISIBILITY_TIMEOUT_SEC} seconds');
+        """)).rowcount
+
+        session.commit()
+        _log(event="SCHEDULER_TICK", queued_from_retrying=n1, retried_from_running=n2)
+    except SQLAlchemyError as e:
+        session.rollback()
+        _log(level="error", event="SCHEDULER_ERROR", error=str(e))
+
 def scheduler_loop():
-    engine = make_engine()
-    interval = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
-    log_sched.info("Scheduler started. interval=%s", interval)
-    while True:
+    ctx, session = _db_session()
+    with ctx:
+        _log(event="SCHEDULER_START", interval_sec=SCHEDULER_INTERVAL_SEC)
+        while True:
+            scheduler_tick(session)
+            time.sleep(SCHEDULER_INTERVAL_SEC)
+
+# --- ワーカー ---------------------------------------------------------------
+PICK_BATCH = int(os.getenv("PICK_BATCH", "10"))
+
+def pick_batch(session, batch=PICK_BATCH):
+    """
+    FOR UPDATE SKIP LOCKED で安全にバッチ取得し、running に更新して返す
+    """
+    rows = session.execute(text("""
+        WITH cte AS (
+          SELECT id
+          FROM jobs
+          WHERE status IN ('queued','retrying')
+            AND (next_run_at IS NULL OR next_run_at <= now())
+          ORDER BY next_run_at NULLS FIRST, id
+          FOR UPDATE SKIP LOCKED
+          LIMIT :batch
+        )
+        UPDATE jobs j
+        SET status='running', attempts=j.attempts+1, updated_at=now()
+        FROM cte
+        WHERE j.id = cte.id
+        RETURNING j.id;
+    """), {"batch": batch}).fetchall()
+
+    ids = [r[0] for r in rows]
+    if not ids:
+        session.commit()
+        return []
+
+    jobs = session.query(Job).filter(Job.id.in_(ids)).all()
+    session.commit()
+    return jobs
+
+def _next_backoff(attempt: int, base=30, factor=2, jitter=0.2):
+    # 例: 1→30s, 2→60s, 3→120s
+    import random
+    sec = base * (factor ** max(0, attempt - 1))
+    j = sec * jitter
+    return timedelta(seconds=int(sec + random.uniform(-j, j)))
+
+def _complete(session, job: Job, result: dict):
+    job.status = "succeeded"
+    job.result_json = result
+    job.next_run_at = None
+    job.updated_at = _now_utc()
+    session.add(job)
+
+def _schedule_retry(session, job: Job, err: dict):
+    job.status = "retrying"
+    job.error = err
+    job.next_run_at = _now_utc() + _next_backoff(job.attempts + 1)
+    job.updated_at = _now_utc()
+    session.add(job)
+
+def _fail(session, job: Job, err: dict):
+    job.status = "failed"
+    job.error = err
+    job.updated_at = _now_utc()
+    session.add(job)
+
+def dispatch(job: Job):
+    """
+    REGISTRY を見てハンドラを呼ぶ。無ければ echo をフォールバック。
+    """
+    handler = REGISTRY.get(job.type)
+    if not handler:
+        if job.type == "echo":
+            handler = _handle_echo
+        else:
+            raise RuntimeError(f"No handler registered for type={job.type}")
+    payload = job.payload_json or {}
+    trace_id = job.trace_id or ""
+    return handler(payload, job_id=job.id, trace_id=trace_id)
+
+def worker_once(session):
+    batch = pick_batch(session)
+    if not batch:
+        time.sleep(0.5)
+        return 0
+
+    done = 0
+    for job in batch:
+        t0 = time.time()
         try:
-            with engine.begin() as conn:
-                now = conn.execute(text("select now()")).scalar()
-                log_sched.info("tick now=%s", now)
-                # 本来はここで「queued → scheduled」への移行などを行う
+            result = dispatch(job)
+            _complete(session, job, result)
+            session.commit()
+            _log(event="JOB_SUCCEEDED", job_id=job.id, type=job.type, latency_ms=int((time.time()-t0)*1000))
+            done += 1
         except Exception as e:
-            log_sched.exception("scheduler loop error: %s", e)
-        time.sleep(interval)
+            session.rollback()
+            err = {
+                "class": e.__class__.__name__,
+                "message": str(e),
+                "traceback": traceback.format_exc().splitlines()[-5:],
+            }
+            if job.attempts < MAX_ATTEMPTS:
+                try:
+                    _schedule_retry(session, job, err)
+                    session.commit()
+                    _log(level="warning", event="JOB_RETRYING", job_id=job.id, type=job.type,
+                         attempts=job.attempts, error=err["message"])
+                except Exception as e2:
+                    session.rollback()
+                    _log(level="error", event="JOB_RETRY_SCHEDULE_FAILED", job_id=job.id, error=str(e2))
+            else:
+                try:
+                    _fail(session, job, err)
+                    session.commit()
+                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type, attempts=job.attempts, error=err["message"])
+                except Exception as e3:
+                    session.rollback()
+                    _log(level="error", event="JOB_FAIL_WRITE_FAILED", job_id=job.id, error=str(e3))
+    return done
 
-
-# ====== Worker ======
 def worker_loop():
-    engine = make_engine()
-    visibility_timeout = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))
-    log_worker.info("Worker started. visibility_timeout=%s", visibility_timeout)
+    ctx, session = _db_session()
+    with ctx:
+        _log(event="WORKER_START", concurrency=WORKER_CONCURRENCY)
+        # 単純なシングルプロセス・ループ（コンテナ1プロセス想定）
+        while True:
+            n = worker_once(session)
+            if n == 0:
+                time.sleep(0.2)
 
-    # result_json / error を JSONB として渡すためのステートメント（←ココが肝）
-    stmt_success = text("""
-        UPDATE public.jobs
-           SET status = 'succeeded',
-               result_json = :result,
-               updated_at = now()
-         WHERE id = :jid
-    """).bindparams(
-        bindparam("result", type_=JSONB),  # ← これで JSONB として安全に渡る
-        bindparam("jid"),
-    )
-
-    stmt_error = text("""
-        UPDATE public.jobs
-           SET status = 'failed',
-               error = :err,
-               updated_at = now()
-         WHERE id = :jid
-    """).bindparams(
-        bindparam("err", type_=JSONB),
-        bindparam("jid"),
-    )
-
-    # ジョブのピック + ロック（行ロック）
-    stmt_pick = text("""
-        SELECT id, type, payload_json
-          FROM public.jobs
-         WHERE status = 'scheduled'
-           AND next_run_at <= now()
-         ORDER BY id
-         FOR UPDATE SKIP LOCKED
-         LIMIT 1
-    """)
-
-    # 実行中にする（必要なら attempts も加算）
-    stmt_running = text("""
-        UPDATE public.jobs
-           SET status = 'running',
-               attempts = attempts + 1,
-               updated_at = now()
-         WHERE id = :jid
-    """)
-
-    while True:
-        try:
-            with engine.begin() as conn:
-                row = conn.execute(stmt_pick).mappings().first()
-                if not row:
-                    time.sleep(2)
-                    continue
-
-                jid = row["id"]
-                jtype = row["type"]
-                payload = row["payload_json"] or {}
-
-                log_worker.info("picked job id=%s type=%s payload=%s", jid, jtype, payload)
-
-                # 実行中に更新
-                conn.execute(stmt_running, {"jid": jid})
-
-                # ---- ここでジョブ実行（例: echo）----
-                if jtype == "echo":
-                    result = {
-                        "ok": True,
-                        "job_id": jid,
-                        "echo": payload,
-                        "trace_id": None,
-                    }
-                else:
-                    # 未対応タイプは失敗扱い
-                    raise RuntimeError(f"unknown job type: {jtype}")
-
-                # 成功書き込み（JSONB として安全に保存）
-                conn.execute(stmt_success, {"jid": jid, "result": result})
-                log_worker.info("done id=%s status=succeeded", jid)
-
-        except Exception as e:
-            # 失敗時はエラーを書き込み（可能な限り jid を拾う）
-            log_worker.exception("worker loop error: %s", e)
-            try:
-                # jid をエラーログから拾えないこともあるので best-effort
-                jid_val = locals().get("jid")
-                if jid_val:
-                    err_obj = {"message": str(e)}
-                    with engine.begin() as conn:
-                        conn.execute(stmt_error, {"jid": jid_val, "err": err_obj})
-            except Exception:
-                # ここはほんとに最終手段なので握りつぶし
-                pass
-
-        time.sleep(2)
-
-
-if __name__ == "__main__":
-    # 簡易的に: 環境変数 MODE=worker なら worker、そうでなければ scheduler
-    mode = os.getenv("MODE", "scheduler")
+# --- エントリーポイント -----------------------------------------------------
+def main():
+    mode = os.getenv("MODE", "").strip().lower()
     if mode == "worker":
         worker_loop()
     else:
+        # MODE 未設定時は scheduler
         scheduler_loop()
 
+if __name__ == "__main__":
+    # コンテナの CMD/entrypoint から `python -m app.jobs.cli` として呼ばれる想定
+    try:
+        main()
+    except KeyboardInterrupt:
+        _log(event="SHUTDOWN", reason="KeyboardInterrupt")
+        sys.exit(0)

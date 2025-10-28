@@ -2,6 +2,7 @@
 import os
 from flask import Flask
 from flask_cors import CORS
+from app.api import v1_misc, v1_jobs, v1_translate, v1_classify, v1_docs, v1_pn
 
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DB_URL")
@@ -12,10 +13,10 @@ def create_app():
     CORS(app)
     app.config.from_object(Config)
 
-    from app.api.v1_misc import bp as bp_misc
-    app.register_blueprint(bp_misc, url_prefix="/v1")
-
-    from app.api.v1_jobs import bp as jobs_bp
-    app.register_blueprint(jobs_bp, url_prefix="/v1")
-
+    app.register_blueprint(v1_misc.bp)
+    app.register_blueprint(v1_jobs.bp)
+    app.register_blueprint(v1_translate.bp)
+    app.register_blueprint(v1_classify.bp)
+    app.register_blueprint(v1_docs.bp)
+    app.register_blueprint(v1_pn.bp)
     return app

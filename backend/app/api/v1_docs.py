@@ -1,26 +1,34 @@
 from flask import Blueprint, request, jsonify
-from ..util.validate import require_json
-from ..models import Job, AuditEvent, MediaBlob  # 必要なものだけに可
-from ..db import db
-import uuid, hashlib, json
-bp = Blueprint("docs", __name__)
+from sqlalchemy import func
+from app.db import db
+from app.models import Job
+
+bp = Blueprint("v1_docs", __name__, url_prefix="/v1")
 
 @bp.post("/docs/clearance-pack")
-@require_json
-def pack():
-    data = request.get_json()
-    # Minimal checks (UoM例)
-    hs_uom = data.get("required_uom","kg")
-    invoice_uom = data.get("invoice_uom","kg")
-    if hs_uom != invoice_uom:
-        return jsonify({"error":{"class":"invalid_uom","message":"HS requires %s, invoice uses %s"%(hs_uom, invoice_uom),"field":"invoice_uom","severity":"block"}}), 400
-    job_id = f"JOB-{uuid.uuid4().hex[:12]}"
-    job = Job(id=job_id, type="pack", status="rendering", trace_id=data.get("traceId"))
+def docs_clearance_pack():
+    data = request.get_json(silent=True) or {}
+    trace_id = data.get("traceId")
+    hs_code = data.get("hs_code")
+    required = data.get("required_uom")
+    invoice = data.get("invoice_uom")
+
+    if not all([hs_code, required, invoice]):
+        return jsonify({"status":"error","error":{"code":"INVALID_ARGUMENT","message":"hs_code/required_uom/invoice_uom は必須"}}), 400
+
+    job = Job(
+        type="clearance_pack",
+        status="queued",
+        attempts=0,
+        next_run_at=func.now(),
+        payload_json={
+            "traceId": trace_id,
+            "hs_code": hs_code,
+            "required_uom": required,
+            "invoice_uom": invoice,
+            "invoice_payload": data.get("invoice_payload")
+        },
+        trace_id=trace_id
+    )
     db.session.add(job); db.session.commit()
-    # simulate artifact
-    manifest = {"traceId": data.get("traceId"), "hs_primary": data.get("hs_code"), "required_uom": hs_uom}
-    sha = hashlib.sha256(json.dumps(manifest,sort_keys=True).encode()).hexdigest()
-    art = Artifact(job_id=job_id, type="clearance_zip", media_id=f"CLEARANCE_{data.get('traceId')}.zip", sha256=sha, size=1024)
-    db.session.add(art); db.session.add(Audit(trace_id=data.get("traceId"), event="DOCS_PACKAGED", payload={"sha256":sha}))
-    job.status="completed"; db.session.commit()
-    return jsonify({"job_id": job_id}), 202
+    return jsonify({"job_id": job.id, "status": "queued"}), 202

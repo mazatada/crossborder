@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify
 from datetime import datetime
 import os
 
-bp = Blueprint("misc", __name__)
+bp = Blueprint("v1_misc", __name__, url_prefix="/v1")
 
 @bp.get("/health")
 def health():

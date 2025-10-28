@@ -2,82 +2,51 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_DB: cbdb
       POSTGRES_USER: cb
       POSTGRES_PASSWORD: cbpass
+      POSTGRES_DB: cbdb
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cb -d cbdb"]
       interval: 5s
       timeout: 3s
       retries: 20
-    ports: ["5432:5432"]
-    volumes: [db_data:/var/lib/postgresql/data]
+    ports:
+      - "5432:5432"
 
   backend:
     build: ./backend
+    image: crossborder-backend:latest
+    environment:
+      # Flask 側がこのどちらかを読む実装。片方だけでもOK
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
+      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - ./backend:/app
+    ports:
+      - "5001:5000"
+
+  worker:
+    image: crossborder-backend:latest
+    command: ["python", "-m", "app.jobs.cli"]
     environment:
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
-      DB_URL: "postgresql+psycopg2://cb:cbpass@db:5432/cbdb?options=-csearch_path%3Dpublic"
-      API_KEYS: ${API_KEYS:-dev123}
-      API_TOKEN: devtoken
-    ports: ["5001:5000"]
-    restart: unless-stopped
-    healthcheck:
-      test:
-        - "CMD-SHELL"
-        - |
-          python - <<'PY'
-          import urllib.request
-          urllib.request.urlopen('http://localhost:5000/v1/health').read()
-          print('ok')
-          PY
-      interval: 10s
-      timeout: 3s
-      retries: 6
+      MODE: worker
+      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
       - ./backend:/app
 
   scheduler:
-    build: ./backend
+    image: crossborder-backend:latest
+    command: ["python", "-m", "app.jobs.cli"]
+    environment:
+      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      MODE: scheduler
-      DB_URL: "postgresql+psycopg2://cb:cbpass@db:5432/cbdb?options=-csearch_path%3Dpublic"
-      WORKER_CONCURRENCY: "1"
-      SCHEDULER_INTERVAL_SEC: "10"
-      VISIBILITY_TIMEOUT_SEC: "1800"
-      MAX_ATTEMPTS: "5"
-      BACKOFF_BASE_SEC: "30"
-      BACKOFF_FACTOR: "2"
-      BACKOFF_JITTER: "0.2"
-    command: ["python", "-m", "app.jobs.cli", "scheduler"]
-    restart: unless-stopped
     volumes:
       - ./backend:/app
-
-  worker:
-    build: ./backend
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      MODE: worker
-      DB_URL: "postgresql+psycopg2://cb:cbpass@db:5432/cbdb?options=-csearch_path%3Dpublic"
-      WORKER_CONCURRENCY: "4"
-      VISIBILITY_TIMEOUT_SEC: "1800"
-      MAX_ATTEMPTS: "5"
-      BACKOFF_BASE_SEC: "30"
-      BACKOFF_FACTOR: "2"
-      BACKOFF_JITTER: "0.2"
-    command: ["python", "-m", "app.jobs.cli", "worker"]
-    restart: unless-stopped
-    volumes:
-      - ./backend:/app
-
-volumes:
-  db_data: {}
