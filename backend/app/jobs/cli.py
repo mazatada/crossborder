@@ -4,75 +4,45 @@ import sys
 import time
 import json
 import traceback
-import app.jobs.handlers.clearance_pack  # noqa: F401
-import app.jobs.handlers.pn_submit       # noqa: F401
 from datetime import datetime, timezone, timedelta
-from app.jobs.handlers import REGISTRY  # これが本体のレジストリ
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db import db
 from app.models import Job
+from app.audit import record_event
+from app.jobs.handlers import echo, clearance_pack, pn_submit
+REGISTRY = {
+    "echo": echo.handle,
+    "clearance_pack": clearance_pack.handle,
+    "pn_submit": pn_submit.handle,
+}
 
-# --- ハンドラレジストリ -----------------------------------------------------
-#   REGISTRY に { "job_type": callable(payload, *, job_id, trace_id) -> dict } を登録
-
-
-# サイドエフェクト import（@register で自動登録される想定のもの）
-# これらは存在しなくても構いません（無ければスキップされます）
-try:
-    import app.jobs.handlers.clearance_pack  # noqa: F401
-except Exception:
-    pass
-
-try:
-    import app.jobs.handlers.pn_submit  # noqa: F401
-except Exception:
-    pass
-
-def _log(**kw):
-    ...
-    print(json.dumps(kw, ensure_ascii=False), flush=True)
-
-# 起動時に登録済みハンドラ名を出して可視化（デバッグ用）
-_log(event="HANDLERS", names=sorted(REGISTRY.keys()))
-
-# echo は内蔵（互換のため）
+# echo は内蔵（互換）
 def _handle_echo(payload: dict, *, job_id: int, trace_id: str):
     return {"ok": True, "job_id": job_id, "echo": payload, "trace_id": trace_id or None}
 
-
-# --- 設定値 ---------------------------------------------------------------
 WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "4"))
 SCHEDULER_INTERVAL_SEC = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
-VISIBILITY_TIMEOUT_SEC = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))  # 30分
+VISIBILITY_TIMEOUT_SEC = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "5"))
+PICK_BATCH = int(os.getenv("PICK_BATCH", "10"))
 
-# --- ユーティリティ ---------------------------------------------------------
 def _now_utc():
     return datetime.now(timezone.utc)
 
 def _log(**kw):
-    # 最低限の構造化ログ（stdout）
     kw.setdefault("ts", _now_utc().isoformat())
     print(json.dumps(kw, ensure_ascii=False), flush=True)
 
 def _db_session():
-    # フラスクのアプリコンテキスト経由で db.session を使う想定
     from app.factory import create_app
     app = create_app()
-    # アプリコンテキストが必要
     return app.app_context(), db.session
 
-# --- スケジューラ -----------------------------------------------------------
 def scheduler_tick(session):
-    """
-    - next_run_at に到達した retrying を queued へ戻す
-    - visibility timeout を超えた running を retrying へ戻す（簡易）
-    """
     try:
-        # retrying -> queued
         n1 = session.execute(text("""
             UPDATE jobs
             SET status = 'queued', updated_at = now()
@@ -80,7 +50,6 @@ def scheduler_tick(session):
               AND (next_run_at IS NULL OR next_run_at <= now());
         """)).rowcount
 
-        # visibility timeout: running で updated_at が古すぎるものを retrying に
         n2 = session.execute(text(f"""
             UPDATE jobs
             SET status = 'retrying', next_run_at = now() + interval '30 seconds', updated_at = now()
@@ -102,13 +71,7 @@ def scheduler_loop():
             scheduler_tick(session)
             time.sleep(SCHEDULER_INTERVAL_SEC)
 
-# --- ワーカー ---------------------------------------------------------------
-PICK_BATCH = int(os.getenv("PICK_BATCH", "10"))
-
 def pick_batch(session, batch=PICK_BATCH):
-    """
-    FOR UPDATE SKIP LOCKED で安全にバッチ取得し、running に更新して返す
-    """
     rows = session.execute(text("""
         WITH cte AS (
           SELECT id
@@ -136,7 +99,6 @@ def pick_batch(session, batch=PICK_BATCH):
     return jobs
 
 def _next_backoff(attempt: int, base=30, factor=2, jitter=0.2):
-    # 例: 1→30s, 2→60s, 3→120s
     import random
     sec = base * (factor ** max(0, attempt - 1))
     j = sec * jitter
@@ -149,6 +111,32 @@ def _complete(session, job: Job, result: dict):
     job.updated_at = _now_utc()
     session.add(job)
 
+from app.webhook import post_event
+from app.audit import record_event  # 既存モジュール
+
+def _after_success(job, result):
+    # イベント名はジョブタイプに応じて変換
+    event_type = {
+      "clearance_pack": "DOCS_PACKAGED",
+      "pn_submit": "PN_SUBMITTED",
+    }.get(job.type, f"JOB_{job.type.upper()}_SUCCEEDED")
+
+    payload = {
+        "job_id": job.id,
+        "event_type": event_type,
+        "occurred_at": job.updated_at.isoformat() if getattr(job, "updated_at", None) else None,
+        "trace_id": job.trace_id,
+        "result": result,
+    }
+    resp = post_event(event_type, payload, trace_id=job.trace_id)
+    record_event(event="WEBHOOK_POST", trace_id=job.trace_id or "", payload={
+        "url": os.getenv("WEBHOOK_URL",""),
+        "status": resp.get("status"),
+        "latency_ms": resp.get("latency_ms"),
+        "event_type": event_type,
+        "job_id": job.id,
+    })
+    
 def _schedule_retry(session, job: Job, err: dict):
     job.status = "retrying"
     job.error = err
@@ -163,9 +151,6 @@ def _fail(session, job: Job, err: dict):
     session.add(job)
 
 def dispatch(job: Job):
-    """
-    REGISTRY を見てハンドラを呼ぶ。無ければ echo をフォールバック。
-    """
     handler = REGISTRY.get(job.type)
     if not handler:
         if job.type == "echo":
@@ -186,58 +171,105 @@ def worker_once(session):
     for job in batch:
         t0 = time.time()
         try:
+            # 1) ハンドラ実行
             result = dispatch(job)
+
+            # 2) 成功として確定（DB書き込み）
             _complete(session, job, result)
-            session.commit()
-            _log(event="JOB_SUCCEEDED", job_id=job.id, type=job.type, latency_ms=int((time.time()-t0)*1000))
+            session.commit()  # ← 先に確定（ここまでは元のまま）
+
+            # 3) ★成功後フック：Webhook送信＋監査記録
+            _after_success(job, result)  # ← この1行を追加したため、ここが新しい
+
+            # 4) 監査イベント（本処理とは独立トランザクションでOK）
+            record_event(
+                event="JOB_SUCCEEDED",
+                trace_id=job.trace_id,
+                target_type="job",
+                target_id=job.id,
+                type=job.type,
+            )
+            _log(event="JOB_SUCCEEDED", job_id=job.id, type=job.type,
+                 latency_ms=int((time.time() - t0) * 1000))
             done += 1
+
         except Exception as e:
+            # 失敗時：元の挙動を維持
             session.rollback()
             err = {
                 "class": e.__class__.__name__,
                 "message": str(e),
                 "traceback": traceback.format_exc().splitlines()[-5:],
             }
-            if job.attempts < MAX_ATTEMPTS:
-                try:
+            try:
+                if job.attempts < MAX_ATTEMPTS:
                     _schedule_retry(session, job, err)
                     session.commit()
+                    record_event(
+                        event="JOB_RETRYING",
+                        trace_id=job.trace_id,
+                        target_type="job",
+                        target_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error_class=err["class"],
+                        error_message=err["message"],
+                    )
                     _log(level="warning", event="JOB_RETRYING", job_id=job.id, type=job.type,
                          attempts=job.attempts, error=err["message"])
-                except Exception as e2:
-                    session.rollback()
-                    _log(level="error", event="JOB_RETRY_SCHEDULE_FAILED", job_id=job.id, error=str(e2))
-            else:
-                try:
+                else:
                     _fail(session, job, err)
                     session.commit()
-                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type, attempts=job.attempts, error=err["message"])
-                except Exception as e3:
-                    session.rollback()
-                    _log(level="error", event="JOB_FAIL_WRITE_FAILED", job_id=job.id, error=str(e3))
+                    record_event(
+                        event="JOB_FAILED",
+                        trace_id=job.trace_id,
+                        target_type="job",
+                        target_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error_class=err["class"],
+                        error_message=err["message"],
+                    )
+                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
+                         attempts=job.attempts, error=err["message"])
+            except Exception as e2:
+                session.rollback()
+                _log(level="error", event="JOB_STATUS_WRITE_FAILED", job_id=job.id, error=str(e2))
     return done
 
 def worker_loop():
     ctx, session = _db_session()
     with ctx:
+        _log(event="HANDLERS", names=sorted(REGISTRY.keys()))
         _log(event="WORKER_START", concurrency=WORKER_CONCURRENCY)
-        # 単純なシングルプロセス・ループ（コンテナ1プロセス想定）
         while True:
             n = worker_once(session)
             if n == 0:
                 time.sleep(0.2)
 
-# --- エントリーポイント -----------------------------------------------------
+def _get_mode():
+    # 1) 環境変数 MODE
+    m = os.getenv("MODE", "").strip().lower()
+    if m:
+        return m
+    # 2) CLI引数 --mode worker|scheduler にも対応
+    if "--mode" in sys.argv:
+        try:
+            idx = sys.argv.index("--mode")
+            return sys.argv[idx + 1].strip().lower()
+        except Exception:
+            return ""
+    return ""
+
 def main():
-    mode = os.getenv("MODE", "").strip().lower()
+    mode = _get_mode()
     if mode == "worker":
         worker_loop()
     else:
-        # MODE 未設定時は scheduler
         scheduler_loop()
 
+
 if __name__ == "__main__":
-    # コンテナの CMD/entrypoint から `python -m app.jobs.cli` として呼ばれる想定
     try:
         main()
     except KeyboardInterrupt:
