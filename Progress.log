@@ -20,6 +20,31 @@ next:
 
 refs:
   - AGENTS.md#7.4 ci-pipeline (lint→pytest→playwright)
+
+## 2025-11-20T08:44:59+09:00 [repo] task=push feature/ultracite-integration
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - .github/workflows/ci.yml
+    - .github/workflows/knowledge-guard.yml
+    - backend/pytest.ini
+    - backend/tests/test_translate_classify.py
+    - frontend/playwright/tests/api.spec.ts
+    - docs/ci_plan.md
+
+summary:
+  - feature/ultracite-integration のローカル変更をコミットして push し、CI/knowledge-guard 拡張分を含む PR #1 の内容を更新
+  - lint→pytest(unit/integration/ultracite)→Playwright API スモークを走らせる CI workflow と nightly knowledge-guard workflow を定義
+  - pytest 用マーカー設定・translate/classify/docs queue/ultracite guard テスト・Playwright API スモークセットアップ・ci_plan / audit docs を追加
+
+next:
+  - GitHub Actions の CI / knowledge-guard 実行結果を確認し、安定性やタイムアウトを監視
+  - Playwright カバレッジを API スモーク以外にも拡張するか検討
+  - PR #1 のレビュー対応を行い、feature/crossborder_start へのマージを進める
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
 ## 2025-11-13T12:47:06+09:00 [ci_runner] task=run pytest container
 
 context:
