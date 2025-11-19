@@ -12,14 +12,19 @@ services:
       retries: 20
     ports:
       - "5432:5432"
+    env_file: .env
 
   backend:
+    # backend でビルド → そのイメージを worker/scheduler が使います
     build: ./backend
     image: crossborder-backend:latest
+    env_file: .env
     environment:
-      # Flask 側がこのどちらかを読む実装。片方だけでもOK
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
-      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
+      # ドライバ名はインストール済みに合わせて：psycopg か psycopg2 のどちらかに統一
+      # すでに .env で postgresql+psycopg を使っているなら、こちらも合わせるのが安全
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb
+      DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
+      PYTHONPATH: /app
     depends_on:
       db:
         condition: service_healthy
@@ -30,23 +35,46 @@ services:
 
   worker:
     image: crossborder-backend:latest
-    command: ["python", "-m", "app.jobs.cli"]
+    env_file: .env
     environment:
-      MODE: worker
-      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
+      PYTHONPATH: /app
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb   # ← 追加
+      DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    # entrypoint を上書きして CLI を直接起動（entrypoint.sh を経由しない）
+    entrypoint: ["python", "-m", "app.jobs.cli", "--mode", "worker"]
 
   scheduler:
     image: crossborder-backend:latest
-    command: ["python", "-m", "app.jobs.cli"]
+    env_file: .env
     environment:
-      DB_URL: postgresql+psycopg2://cb:cbpass@db:5432/cbdb
+      PYTHONPATH: /app
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb   # ← 追加
+      DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - ./backend:/app
+    entrypoint: ["python", "-m", "app.jobs.cli", "--mode", "scheduler"]
+
+  pytest:
+    build: ./backend
+    image: crossborder-backend:latest
+    env_file: .env
+    environment:
+      PYTHONPATH: /app
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb
+      DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    entrypoint: ["python", "-m", "pytest"]
+    command: ["-m", "unit or integration"]
+    restart: "no"

@@ -3,7 +3,15 @@
 .kilocode/rules/byterover-rules.md
 .roo/rules/byterover-rules.md
 .windsurf/rules/byterover-rules.md
+.DS_Store
+.DS_Store
+frontend/test-results/
+frontend/playwright-report/
+backend/__pycache__/
+backend/app/__pycache__/
+backend/tests/__pycache__/
 .cursor/rules/byterover-rules.mdc
 .kiro/steering/byterover-rules.md
 .qoder/rules/byterover-rules.md
 .augment/rules/byterover-rules.md
+.env

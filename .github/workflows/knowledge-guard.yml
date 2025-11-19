@@ -1,0 +1,27 @@
+name: Knowledge Guard
+
+on:
+  schedule:
+    - cron: "0 1 * * *"  # 01:00 UTC nightly
+  workflow_dispatch:
+
+jobs:
+  ultracite-guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: Run ultracite guard
+        run: docker compose run --rm pytest -m ultracite
+
+      - name: Teardown Docker services
+        if: always()
+        run: docker compose down

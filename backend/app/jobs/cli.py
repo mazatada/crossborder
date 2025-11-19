@@ -12,12 +12,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db import db
 from app.models import Job
 from app.audit import record_event
-from app.jobs.handlers import echo, clearance_pack, pn_submit
-REGISTRY = {
-    "echo": echo.handle,
-    "clearance_pack": clearance_pack.handle,
-    "pn_submit": pn_submit.handle,
-}
+from app.jobs.handlers import clearance_pack, pn_submit
+from app.jobs import handlers as job_handlers
+
+REGISTRY = dict(job_handlers.REGISTRY)
 
 # echo は内蔵（互換）
 def _handle_echo(payload: dict, *, job_id: int, trace_id: str):

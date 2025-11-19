@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - feat/**             # keep CI active on feature branches
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  dockerized-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: Python lint (ruff)
+        run: docker compose run --rm --entrypoint ruff backend check backend backend/tests
+
+      - name: Python style (black)
+        run: docker compose run --rm --entrypoint black backend --check backend
+
+      - name: Run pytest (unit/integration)
+        run: docker compose run --rm pytest
+
+      - name: Start backend services for Playwright
+        run: docker compose up -d db backend
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps
+
+      - name: Run Playwright API smoke tests
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Stop Docker services
+        if: always()
+        run: docker compose down

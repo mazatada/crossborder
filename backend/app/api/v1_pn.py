@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import func
 from app.db import db
 from app.models import Job
+from app.audit import record_event
 
 bp = Blueprint("v1_pn", __name__, url_prefix="/v1")
 
@@ -26,4 +27,14 @@ def fda_prior_notice():
         trace_id=trace_id
     )
     db.session.add(job); db.session.commit()
+
+    # 監査
+    record_event(
+        event="JOB_QUEUED",
+        trace_id=trace_id,
+        target_type="job",
+        target_id=job.id,
+        type=job.type,
+    )
+
     return jsonify({"job_id": job.id, "status": "queued"}), 202
