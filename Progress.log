@@ -45,6 +45,24 @@ next:
 
 refs:
   - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-20T08:52:42+09:00 [backend] task=address coderabbit import comment
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+
+summary:
+  - worker の webhook/audit フックで ModuleNotFoundError 指摘があったため、`post_event` をモジュール先頭でインポートし、不要な重複インポートを除去
+  - `backend/app/webhook.py` と `backend/app/audit.py` がブランチに含まれていることを PR #1 のコメントで共有
+
+next:
+  - CI で worker import が通ることを確認
+  - レビューコメントを resolve 扱いにするか確認し、残タスクがあれば対応
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
 ## 2025-11-13T12:47:06+09:00 [ci_runner] task=run pytest container
 
 context:
