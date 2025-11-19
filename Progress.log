@@ -63,6 +63,25 @@ next:
 
 refs:
   - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-20T08:54:57+09:00 [logger] task=record coderabbit response
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - Progress.log
+
+summary:
+  - coderabbit の P0 import 指摘について、`post_event` を module top import に整理し ModuleNotFoundError リスクを解消したことを記録
+  - PR #1 に対し import 実装がブランチに含まれる旨をコメントで共有し、最新版を push 済み
+
+next:
+  - CI の worker import / webhook フローが通過するか確認
+  - レビューコメントの resolve を確認し、追加指摘があれば対応
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
 ## 2025-11-13T12:47:06+09:00 [ci_runner] task=run pytest container
 
 context:
