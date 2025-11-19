@@ -12,6 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db import db
 from app.models import Job
 from app.audit import record_event
+from app.webhook import post_event
 from app.jobs.handlers import clearance_pack, pn_submit
 from app.jobs import handlers as job_handlers
 
@@ -108,9 +109,6 @@ def _complete(session, job: Job, result: dict):
     job.next_run_at = None
     job.updated_at = _now_utc()
     session.add(job)
-
-from app.webhook import post_event
-from app.audit import record_event  # 既存モジュール
 
 def _after_success(job, result):
     # イベント名はジョブタイプに応じて変換
