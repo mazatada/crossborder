@@ -78,3 +78,28 @@ services:
     entrypoint: ["python", "-m", "pytest"]
     command: ["-m", "unit or integration"]
     restart: "no"
+
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.44.1-focal
+    working_dir: /app/frontend
+    env_file: .env
+    environment:
+      PLAYWRIGHT_BASE_URL: http://backend:5000
+      # Playwrightのブラウザ依存キャッシュを共有しない簡易構成。必要なら volume 化を検討。
+    depends_on:
+      backend:
+        condition: service_started
+      db:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app/frontend
+      - ./backend:/app/backend
+      - playwright-cache:/ms-playwright
+    entrypoint: ["/bin/bash", "-lc"]
+    command:
+      - |
+        npm ci --prefer-offline --no-progress
+        npx playwright test --project=api
+
+volumes:
+  playwright-cache:

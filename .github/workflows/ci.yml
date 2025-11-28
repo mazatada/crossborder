@@ -34,26 +34,8 @@ jobs:
       - name: Run pytest (unit/integration)
         run: docker compose run --rm pytest
 
-      - name: Start backend services for Playwright
-        run: docker compose up -d db backend
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: "20"
-          cache: "npm"
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm install
-
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install --with-deps
-
-      - name: Run Playwright API smoke tests
-        working-directory: frontend
-        run: npm run test:e2e
+      - name: Run Playwright API smoke tests (dockerized)
+        run: docker compose run --rm playwright
 
       - name: Stop Docker services
         if: always()

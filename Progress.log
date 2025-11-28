@@ -82,6 +82,377 @@ next:
 
 refs:
   - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:07:43+09:00 [backend] task=expand tests translate→classify→docs→PN
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/tests/test_docs_queue.py
+    - frontend/playwright/tests/api.spec.ts
+
+summary:
+  - dockerized pytest を実行し、最新の9件（既存 + 追加テスト）が全てパスすることを確認
+  - clearance-pack API で trace_id/invoice_payload/audit event の保存を検証する integration テストを追加
+  - Playwright API スモークに translate→classify→docs→PN のシーケンスを追加し、ジョブが queued になることを確認する検証を用意
+
+next:
+  - backend: 追加の unit/integration テストでジョブ処理やエラー系を拡充する
+  - Playwright: 127.0.0.1:5001 で backend を起動した環境で新シナリオを実行し CI で安定性を確認する
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:10:19+09:00 [backend] task=add prior-notice integration tests
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/tests/test_pn.py
+
+summary:
+  - prior-notice API の integration テストを追加し、trace_id と payload 保存・JOB_QUEUED 監査イベントの呼び出しを検証
+  - 必須フィールド欠如時の INVALID_ARGUMENT を確認するエラー系テストを追加
+  - dockerized pytest (`-k prior_notice`) を実行して新テストを含むスイートがパスすることを確認
+
+next:
+  - PN ジョブ処理（worker 実行パス）と clearance-pack → PN 連携の結合テストを追加検討
+  - CI で Playwright スモークの translate→classify→docs→PN シナリオを走らせてジョブキューをエンドツーエンド検証する
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:19:49+09:00 [backend] task=pn worker execution test
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/tests/test_pn.py
+
+summary:
+  - PN worker 実行経路の integration テストを追加し、queued→succeeded への遷移と result_json (receipt_media_id) を確認
+  - post_event/record_event をモックして PN_SUBMITTED webhook と WEBHOOK_POST/JOB_SUCCEEDED 監査が呼ばれることを検証
+  - dockerized pytest (`-k prior_notice`) を再実行し、新テストを含めて pass することを確認
+
+next:
+  - clearance-pack と PN を跨いだ連携エラー系/正常系のテストを追加検討
+  - Playwright スモーク translate→classify→docs→PN を CI 環境で実走させ、ジョブキューのE2E監視を確認
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:28:41+09:00 [browser] task=make playwright baseURL configurable
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - frontend/playwright.config.ts
+
+summary:
+  - Playwright の baseURL を環境変数 `PLAYWRIGHT_BASE_URL` で上書え可能にし、未設定時は従来どおり 127.0.0.1:5001 を使うフォールバックを維持
+  - ローカルでホスト疎通が制限される場合でも、CI や docker ネットワーク内では `PLAYWRIGHT_BASE_URL=http://backend:5000` などを渡すだけで実行できるようにした
+
+next:
+  - CI で Playwright 実行時に baseURL を docker 内ホスト（例: backend:5000）に設定して疎通確認
+  - 必要に応じて front 用 compose サービスから Playwright を呼ぶターゲットを追加検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:31:52+09:00 [browser] task=add playwright compose service
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - docker-compose.yml
+
+summary:
+  - Playwright 実行用 compose サービス `playwright` を追加し、mcr.microsoft.com/playwright:v1.44.1-focal で front/back 同居ネットワークから API スモークを実行できるようにした
+  - working_dir を /app/frontend とし、volume で frontend/backend をマウント、PLAYWRIGHT_BASE_URL=http://backend:5000 を設定
+  - entrypoint で `npm ci` → `npx playwright test --project=api` を実行するワンライナーを追加
+
+next:
+  - CI で `docker compose run --rm playwright` をステージに組み込み、backend/db 依存を満たした上で API スモークを実行
+  - 必要ならブラウザキャッシュ volume を追加して実行時間を短縮
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:33:22+09:00 [ci_runner] task=run playwright via compose in CI
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - .github/workflows/ci.yml
+
+summary:
+  - CI ワークフローの Playwright ステージを dockerized 実行に統一し、`docker compose run --rm playwright` を追加
+  - Node/Playwright セットアップ手順（actions/setup-node, npm install, playwright install）を削除し、compose サービス経由で backend:5000 に対して API スモークを実行するフローに簡素化
+  - backend イメージビルド→ruff→black→pytest→Playwright(compose)→down の順序を維持
+
+next:
+  - GitHub Actions で ci ワークフローを実行し、Playwright ステージが backend/db 依存込みでパスするか確認
+  - 必要なら Playwright ブラウザキャッシュを volume 共有して実行時間を短縮
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T09:58:52+09:00 [backend] task=add job runtime retry/scheduler tests
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - ジョブ実行基盤の統合テストを追加し、scheduler_tick が visibility timeout 超過の running ジョブを retrying に戻すことを検証
+  - worker がハンドラ例外発生時に retrying へ遷移し、JOB_RETRYING イベントを記録する経路を検証
+  - dockerized pytest (`-k job_runtime`) を実行し新テストを含めパスすることを確認
+
+next:
+  - 長時間ジョブ用のハートビート/updated_at 更新が未実装のため、必要なら追加実装とテストを検討
+  - failed→queued 再キューや cancel 操作の運用/監査パスをテストで補完
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:03:45+09:00 [backend] task=add worker heartbeat and tests
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - worker 実行時にハートビートを刻む `_heartbeat` を追加し、可視性タイムアウトが長時間ジョブで誤発火しないよう updated_at を事前更新
+  - ハートビート呼び出し順序と成功遷移を検証する integration テストを追加し、dockerized pytest (`-k job_runtime`) でパスを確認
+  - これにより plan_2 の監視・可視性タイムアウト対策の一部を実装
+
+next:
+  - failed→queued 再キューや cancel 操作の運用パスと監査イベントのテストを追加検討
+  - handler エラーの非再試行条件など、リトライ判定の分岐が必要なら実装・テストで補完
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:05:08+09:00 [backend] task=add requeue/cancel helpers and tests
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - ジョブを failed から queued に戻す `requeue_job` と cancel 用の `cancel_job` を追加し、監査イベント（JOB_REQUEUED/JOB_CANCELED）を書き込むように実装
+  - 上記の動作を検証する integration テストを追加し、dockerized pytest (`-k job_runtime`) でパスを確認
+  - plan_2 の運用パス（再キュー/キャンセル）の下地を整備
+
+next:
+  - handler ごとに非再試行条件がある場合の分岐（致命エラー時は failed 固定）を検討
+  - 監査・Webhook失敗時のリトライ/サプレッション方針を整理し、必要に応じてテストを追加
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:08:25+09:00 [backend] task=non-retriable error handling
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - NonRetriableError を導入し、ハンドラがこの例外を投げた場合は retry せず failed に固定・監査ログ（JOB_FAILED, retriable=False）を記録するように変更
+  - 上記挙動を検証する integration テストを追加し、dockerized pytest (`-k job_runtime`) でパスを確認
+  - retry/fail 判定の分岐を明確化し、致命エラー時に無限リトライしないようガードを追加
+
+next:
+  - 監査/Webhook 失敗時のリトライ・サプレッション方針を決め、必要ならテストを追加
+  - ハンドラごとの致命エラー条件を整理し、NonRetriableError を使った分岐を実装するか検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:13:57+09:00 [backend] task=webhook failure handling
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - _after_success で post_event の失敗を捕捉し、ジョブは succeeded のまま監査イベント WEBHOOK_POST_FAILED を記録するように変更（ログもエラー出力）
+  - record_event 自体が失敗した場合もログでフォールバックするガードを追加
+  - webhook/down 時の挙動を検証する integration テストを追加し、dockerized pytest (`-k job_runtime`) でパス確認
+
+next:
+  - handler ごとの致命エラー条件を NonRetriableError で明示し、必要に応じて分岐を追加
+  - webhook 再送ポリシー（別ジョブで再送 or サプレッション）の要否を検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:17:39+09:00 [backend] task=handler-level non-retriable guard
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/handlers/clearance_pack.py
+    - backend/app/jobs/handlers/pn_submit.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - clearance_pack/pn_submit ハンドラで必須フィールド欠如時に NonRetriableError を明示的に送出し、無限リトライを防止
+  - NonRetriableError をハンドラ経由で発生させる統合テストを追加し、dockerized pytest (`-k job_runtime`) でパス確認（計7ケース）
+  - 致命エラー時は JOB_FAILED(retriable=False) を記録する分岐をテストでカバー
+
+next:
+  - webhook 再送ポリシーが必要なら別ジョブ/リトライ戦略を検討（現状は失敗を監査記録してサプレッション）
+  - Playwright 初回実行高速化（ブラウザキャッシュ volume）を検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:30:14+09:00 [backend] task=webhook retry job and tests
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/app/jobs/handlers/webhook_retry.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - webhook 失敗時に専用ジョブ `webhook_retry` をキューイングし、後続で post_event を再試行するポリシーを追加（成功時は従来どおり即時送信）
+  - enqueue 失敗時の監査/ログガードを追加し、WEBHOOK_RETRY_ENQUEUE_FAILED も記録
+  - webhook 再送ジョブのハンドラを実装し、統合テスト（再送ジョブ生成・NonRetriable/エラー経路含む）を `docker compose run --rm pytest -k job_runtime` でパス確認（8ケース）
+
+next:
+  - webhook_retry の再送回数/間隔を環境変数化するか検討
+  - Playwright 初回実行の高速化（ブラウザキャッシュ volume）を検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:36:53+09:00 [backend] task=webhook retry tuning and limits
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/app/jobs/handlers/webhook_retry.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - webhook retry ジョブに retry_max_attempts/retry_base_sec を環境変数化し、enqueue 時に payload へ引き渡すよう変更
+  - webhook_retry ハンドラで post_event 例外を 503 扱いし、attempts を増やしながら backoff/非再試行判定を実装（最大試行超過で NonRetriableError）
+  - webhook retry の最大試行を 1 にした場合に failed 固定されることを確認する統合テストを追加し、dockerized pytest (`-k job_runtime`) で9ケースパス確認
+
+next:
+  - webhook_retry の backoff/attempts を job.attempts と同期させるか検討（現在は payload ベース）
+  - Playwright 初回実行高速化（ブラウザキャッシュ volume）を検討
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:38:44+09:00 [browser] task=playwright cache volume
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - docker-compose.yml
+
+summary:
+  - Playwright サービスにブラウザキャッシュ用 volume `playwright-cache` を追加し、CI/ローカルでの初回ブラウザDL・起動を高速化
+  - volume を /ms-playwright にマウントし、`npm ci` → `npx playwright test --project=api` の既存コマンドを維持
+
+next:
+  - CI で初回実行時間がどの程度短縮されるか確認
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T11:00:00+09:00 [backend] task=webhook retry attempts sync (in progress)
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/app/jobs/handlers/webhook_retry.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - webhook_retry のリトライ回数を payload ではなく job.attempts に同期する方針へ変更中（payload上の attempts は削除済み）
+  - post_event の 5xx を RuntimeError として扱い再送ジョブを enqueue するが、webhook_retry 自身の失敗も再送対象となり連鎖し、テスト `test_webhook_retry_respects_max_attempts` が失敗中
+  - 現状: dockerized pytest `-k job_runtime` は webhook_retry max-attempts テストで失敗（無限再送に近い挙動）
+
+next:
+  - _after_success で job.type == webhook_retry の場合は再送ジョブを生成しないよう除外
+  - webhook_retry.handle で attempts を job.attempts を真実源に再実装（payloadから削除）し、max_attempts 超過で NonRetriableError
+  - テスト `test_webhook_retry_respects_max_attempts` を再調整し、webhook_retry を直接投入→2回 worker_once で failed になることを確認
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T10:52:03+09:00 [backend] task=webhook retry attempts sync (completed)
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - backend/app/jobs/cli.py
+    - backend/app/jobs/handlers/webhook_retry.py
+    - backend/tests/test_job_runtime.py
+
+summary:
+  - webhook_retry は再送ジョブを新規生成しないよう _after_success で除外し、post_event 5xx を RuntimeError 扱いに変更
+  - attempts を job.attempts を真実源とするよう dispatch で payload に `_job_attempts` を付与し、handler はそれを参照（payload attempts は撤廃）
+  - webhook_retry の max_attempts を 1 にした場合に NonRetriableError で failed 固定される統合テストを修正・通過、dockerized pytest `-k job_runtime` で 9 ケースパス
+
+next:
+  - webhook_retry の backoff/attempts を job.attempts と完全同期させているが、必要なら retry_max/retry_base を job 環境変数に統一するか検討
+  - Playwright 初回実行高速化の結果を CI で確認
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T11:22:47+09:00 [browser] task=playwright smoke success (docker compose)
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - docker-compose.yml
+    - frontend/playwright/tests/api.spec.ts
+
+summary:
+  - `docker compose run --rm playwright` を実行し、APIスモーク5件が約2秒で全て成功（cache volume有効状態）
+  - backend/db を compose で起動したネットワーク上で translate→classify→docs→PN シナリオまで疎通確認
+
+next:
+  - CI でも Playwright ステージの実行時間と安定性を確認
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
+
+## 2025-11-28T11:22:47+09:00 [backend] task=add webhook retry env hints
+
+context:
+  branch: feature/ultracite-integration
+  files:
+    - .env.example
+
+summary:
+  - webhook retry 設定用の環境変数 `WEBHOOK_RETRY_MAX_ATTEMPTS` / `WEBHOOK_RETRY_BASE_SEC` を `.env.example` にコメント付きで追記
+  - デフォルト値はコード側で 5 / 30 秒を使用
+
+next:
+  - CI 実行時に必要なら `.env` で値を上書えし運用方針をドキュメントに反映
+
+refs:
+  - PR: https://github.com/mazatada/crossborder/pull/1
 ## 2025-11-13T12:47:06+09:00 [ci_runner] task=run pytest container
 
 context:

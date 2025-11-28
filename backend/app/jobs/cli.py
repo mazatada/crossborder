@@ -6,17 +6,20 @@ import json
 import traceback
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy import text
+from sqlalchemy import text, func
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.db import db
 from app.models import Job
 from app.audit import record_event
 from app.webhook import post_event
-from app.jobs.handlers import clearance_pack, pn_submit
+from app.jobs.handlers import clearance_pack, pn_submit, webhook_retry
 from app.jobs import handlers as job_handlers
 
 REGISTRY = dict(job_handlers.REGISTRY)
+
+class NonRetriableError(Exception):
+    """Raise from handlers to mark job as failed without retry."""
 
 # echo は内蔵（互換）
 def _handle_echo(payload: dict, *, job_id: int, trace_id: str):
@@ -27,6 +30,8 @@ SCHEDULER_INTERVAL_SEC = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
 VISIBILITY_TIMEOUT_SEC = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))
 MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", "5"))
 PICK_BATCH = int(os.getenv("PICK_BATCH", "10"))
+WEBHOOK_RETRY_MAX_ATTEMPTS = int(os.getenv("WEBHOOK_RETRY_MAX_ATTEMPTS", "5"))
+WEBHOOK_RETRY_BASE_SEC = int(os.getenv("WEBHOOK_RETRY_BASE_SEC", "30"))
 
 def _now_utc():
     return datetime.now(timezone.utc)
@@ -110,6 +115,11 @@ def _complete(session, job: Job, result: dict):
     job.updated_at = _now_utc()
     session.add(job)
 
+def _heartbeat(session, job: Job):
+    job.updated_at = _now_utc()
+    session.add(job)
+    session.commit()
+
 def _after_success(job, result):
     # イベント名はジョブタイプに応じて変換
     event_type = {
@@ -124,14 +134,77 @@ def _after_success(job, result):
         "trace_id": job.trace_id,
         "result": result,
     }
-    resp = post_event(event_type, payload, trace_id=job.trace_id)
-    record_event(event="WEBHOOK_POST", trace_id=job.trace_id or "", payload={
-        "url": os.getenv("WEBHOOK_URL",""),
-        "status": resp.get("status"),
-        "latency_ms": resp.get("latency_ms"),
-        "event_type": event_type,
-        "job_id": job.id,
-    })
+    try:
+        resp = post_event(event_type, payload, trace_id=job.trace_id)
+        if resp.get("status") and resp["status"] >= 500:
+            raise RuntimeError(f"webhook status {resp.get('status')}")
+        record_event(event="WEBHOOK_POST", trace_id=job.trace_id or "", payload={
+            "url": os.getenv("WEBHOOK_URL",""),
+            "status": resp.get("status"),
+            "latency_ms": resp.get("latency_ms"),
+            "event_type": event_type,
+            "job_id": job.id,
+        })
+    except Exception as e:
+        err = {"class": e.__class__.__name__, "message": str(e)}
+        _log(level="error", event="WEBHOOK_POST_FAILED", job_id=job.id, type=job.type, error=err["message"])
+        # webhook_retry 自身は再送ジョブを作らず、監査だけ残す
+        if job.type == "webhook_retry":
+            try:
+                record_event(
+                    event="WEBHOOK_POST_FAILED",
+                    trace_id=job.trace_id,
+                    target_type="job",
+                    target_id=job.id,
+                    type=job.type,
+                    error_class=err["class"],
+                    error_message=err["message"],
+                )
+            except Exception:
+                _log(level="error", event="AUDIT_LOG_FAILED", job_id=job.id, type=job.type, reason="record_event failed after webhook failure")
+            return
+        try:
+            retry_job = Job(
+                type="webhook_retry",
+                status="queued",
+                attempts=0,
+                next_run_at=func.now(),
+                payload_json={
+                    "event_type": event_type,
+                    "payload": payload,
+                    "trace_id": job.trace_id,
+                    "retry_max_attempts": WEBHOOK_RETRY_MAX_ATTEMPTS,
+                    "retry_base_sec": WEBHOOK_RETRY_BASE_SEC,
+                },
+                trace_id=job.trace_id,
+            )
+            db.session.add(retry_job)
+            db.session.commit()
+            _log(event="WEBHOOK_RETRY_ENQUEUED", job_id=job.id, retry_job_id=retry_job.id, event_type=event_type)
+            record_event(
+                event="WEBHOOK_POST_FAILED",
+                trace_id=job.trace_id,
+                target_type="job",
+                target_id=job.id,
+                type=job.type,
+                error_class=err["class"],
+                error_message=err["message"],
+                retry_job_id=retry_job.id,
+            )
+        except Exception as e2:
+            db.session.rollback()
+            _log(level="error", event="WEBHOOK_RETRY_ENQUEUE_FAILED", job_id=job.id, type=job.type, error=str(e2))
+            try:
+                record_event(
+                    event="WEBHOOK_RETRY_ENQUEUE_FAILED",
+                    trace_id=job.trace_id,
+                    target_type="job",
+                    target_id=job.id,
+                    type=job.type,
+                    error_message=str(e2),
+                )
+            except Exception:
+                _log(level="error", event="AUDIT_LOG_FAILED", job_id=job.id, type=job.type, reason="record_event failed after webhook failure")
     
 def _schedule_retry(session, job: Job, err: dict):
     job.status = "retrying"
@@ -146,6 +219,46 @@ def _fail(session, job: Job, err: dict):
     job.updated_at = _now_utc()
     session.add(job)
 
+def requeue_job(job_id: int, *, session=None):
+    sess = session or db.session
+    job = sess.get(Job, job_id)
+    if not job:
+        raise ValueError(f"Job {job_id} not found")
+    job.status = "queued"
+    job.error = None
+    job.next_run_at = _now_utc()
+    job.updated_at = _now_utc()
+    job.attempts = 0
+    sess.add(job)
+    sess.commit()
+    record_event(
+        event="JOB_REQUEUED",
+        trace_id=job.trace_id,
+        target_type="job",
+        target_id=job.id,
+        type=job.type,
+    )
+    return job
+
+def cancel_job(job_id: int, *, session=None):
+    sess = session or db.session
+    job = sess.get(Job, job_id)
+    if not job:
+        raise ValueError(f"Job {job_id} not found")
+    job.status = "canceled"
+    job.next_run_at = None
+    job.updated_at = _now_utc()
+    sess.add(job)
+    sess.commit()
+    record_event(
+        event="JOB_CANCELED",
+        trace_id=job.trace_id,
+        target_type="job",
+        target_id=job.id,
+        type=job.type,
+    )
+    return job
+
 def dispatch(job: Job):
     handler = REGISTRY.get(job.type)
     if not handler:
@@ -154,6 +267,8 @@ def dispatch(job: Job):
         else:
             raise RuntimeError(f"No handler registered for type={job.type}")
     payload = job.payload_json or {}
+    # attempts は job.attempts を真実源とし、handler へ引き渡す
+    payload["_job_attempts"] = job.attempts
     trace_id = job.trace_id or ""
     return handler(payload, job_id=job.id, trace_id=trace_id)
 
@@ -167,6 +282,9 @@ def worker_once(session):
     for job in batch:
         t0 = time.time()
         try:
+            # 0) ハートビートを先に刻んで可視性タイムアウトを延長
+            _heartbeat(session, job)
+
             # 1) ハンドラ実行
             result = dispatch(job)
 
@@ -198,7 +316,23 @@ def worker_once(session):
                 "traceback": traceback.format_exc().splitlines()[-5:],
             }
             try:
-                if job.attempts < MAX_ATTEMPTS:
+                if isinstance(e, NonRetriableError):
+                    _fail(session, job, err)
+                    session.commit()
+                    record_event(
+                        event="JOB_FAILED",
+                        trace_id=job.trace_id,
+                        target_type="job",
+                        target_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error_class=err["class"],
+                        error_message=err["message"],
+                        retriable=False,
+                    )
+                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
+                         attempts=job.attempts, error=err["message"], retriable=False)
+                elif job.attempts < MAX_ATTEMPTS:
                     _schedule_retry(session, job, err)
                     session.commit()
                     record_event(
@@ -225,9 +359,10 @@ def worker_once(session):
                         attempts=job.attempts,
                         error_class=err["class"],
                         error_message=err["message"],
+                        retriable=True,
                     )
                     _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
-                         attempts=job.attempts, error=err["message"])
+                         attempts=job.attempts, error=err["message"], retriable=True)
             except Exception as e2:
                 session.rollback()
                 _log(level="error", event="JOB_STATUS_WRITE_FAILED", job_id=job.id, error=str(e2))
