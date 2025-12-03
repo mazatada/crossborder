@@ -41,7 +41,14 @@ def classify_hs():
                 })
 
     # Check Ingredients (if no match yet or to boost confidence)
-    ing_text = " ".join([i.get("en", "") for i in ingredients]).lower()
+    # Normalize ingredients: support both string and dict formats
+    normalized_ingredients = []
+    for i in ingredients:
+        if isinstance(i, str):
+            normalized_ingredients.append(i)
+        elif isinstance(i, dict):
+            normalized_ingredients.append(i.get("en", ""))
+    ing_text = " ".join(normalized_ingredients).lower()
     for rule in RULES:
         for kw in rule["keywords"]:
             if kw in ing_text:
