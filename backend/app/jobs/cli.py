@@ -21,6 +21,13 @@ REGISTRY = dict(job_handlers.REGISTRY)
 class NonRetriableError(Exception):
     """Raise from handlers to mark job as failed without retry."""
 
+class RetryableError(Exception):
+    """Raise from handlers to trigger retry with custom backoff."""
+    def __init__(self, message: str, backoff_sec: float = 60):
+        super().__init__(message)
+        self.backoff_sec = backoff_sec
+
+
 # echo は内蔵（互換）
 def _handle_echo(payload: dict, *, job_id: int, trace_id: str):
     return {"ok": True, "job_id": job_id, "echo": payload, "trace_id": trace_id or None}
@@ -206,10 +213,13 @@ def _after_success(job, result):
             except Exception:
                 _log(level="error", event="AUDIT_LOG_FAILED", job_id=job.id, type=job.type, reason="record_event failed after webhook failure")
     
-def _schedule_retry(session, job: Job, err: dict):
+def _schedule_retry(session, job: Job, err: dict, backoff_sec: float = None):
     job.status = "retrying"
     job.error = err
-    job.next_run_at = _now_utc() + _next_backoff(job.attempts + 1)
+    if backoff_sec is not None:
+        job.next_run_at = _now_utc() + datetime.timedelta(seconds=backoff_sec)
+    else:
+        job.next_run_at = _now_utc() + _next_backoff(job.attempts + 1)
     job.updated_at = _now_utc()
     session.add(job)
 
@@ -332,6 +342,23 @@ def worker_once(session):
                     )
                     _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
                          attempts=job.attempts, error=err["message"], retriable=False)
+                elif isinstance(e, RetryableError):
+                    # Use custom backoff from RetryableError
+                    _schedule_retry(session, job, err, backoff_sec=e.backoff_sec)
+                    session.commit()
+                    record_event(
+                        event="JOB_RETRYING",
+                        trace_id=job.trace_id,
+                        target_type="job",
+                        target_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error_class=err["class"],
+                        error_message=err["message"],
+                        backoff_sec=e.backoff_sec,
+                    )
+                    _log(level="warning", event="JOB_RETRYING", job_id=job.id, type=job.type,
+                         attempts=job.attempts, error=err["message"], backoff_sec=e.backoff_sec)
                 elif job.attempts < MAX_ATTEMPTS:
                     _schedule_retry(session, job, err)
                     session.commit()

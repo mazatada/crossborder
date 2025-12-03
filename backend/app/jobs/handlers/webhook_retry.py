@@ -21,12 +21,12 @@ def handle(payload: dict, *, job_id: int, trace_id: str):
     if resp.get("status") and resp["status"] >= 500:
         if attempt >= retry_max:
             raise NonRetriableError("webhook retry exhausted")
+        # Raise to trigger retry path in worker
+        from app.jobs.cli import RetryableError
         backoff = _next_backoff(attempt + 1, base=retry_base)
-        return {
-            "retry": True,
-            "backoff_sec": backoff.total_seconds(),
-            "trace_id": target_trace,
-            "event_type": event_type,
-        }
+        raise RetryableError(
+            f"Webhook returned {resp['status']}, retrying in {backoff.total_seconds()}s",
+            backoff_sec=backoff.total_seconds()
+        )
 
     return {"status": resp.get("status"), "trace_id": target_trace, "event_type": event_type}
