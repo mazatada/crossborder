@@ -60,3 +60,22 @@ class DocumentPackage(db.Model):
     invoice_uom = db.Column(db.String(8), nullable=False)
     invoice_payload = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoints"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    url = db.Column(db.String(512), nullable=False)
+    secret = db.Column(db.String(128), nullable=False)  # HMAC secret
+    events = db.Column(db.JSON, nullable=False)  # List of event types to subscribe
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class OrderStatus(db.Model):
+    __tablename__ = "order_statuses"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    order_id = db.Column(db.String(128), nullable=False, index=True)
+    status = db.Column(db.String(32), nullable=False)  # PAID, CANCELED
+    ts = db.Column(db.DateTime, nullable=False)  # Timestamp from external system
+    customer_region = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
