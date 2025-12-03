@@ -2,7 +2,7 @@
 import os
 from flask import Flask
 from flask_cors import CORS
-from app.api import v1_misc, v1_jobs, v1_translate, v1_classify, v1_docs, v1_pn
+from app.api import v1_misc, v1_jobs, v1_translate, v1_classify, v1_docs, v1_pn, v1_audit
 
 class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DB_URL")
@@ -19,4 +19,5 @@ def create_app():
     app.register_blueprint(v1_classify.bp)
     app.register_blueprint(v1_docs.bp)
     app.register_blueprint(v1_pn.bp)
+    app.register_blueprint(v1_audit.bp)
     return app

@@ -11,7 +11,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5432:5432"
+      - "54320:5432"
     env_file: .env
 
   backend:
@@ -30,6 +30,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - ./docs:/docs
     ports:
       - "5001:5000"
 
@@ -38,7 +39,7 @@ services:
     env_file: .env
     environment:
       PYTHONPATH: /app
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb   # ← 追加
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb # ← 追加
       DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
     depends_on:
       db:
@@ -53,7 +54,7 @@ services:
     env_file: .env
     environment:
       PYTHONPATH: /app
-      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb   # ← 追加
+      SQLALCHEMY_DATABASE_URI: postgresql+psycopg://cb:cbpass@db:5432/cbdb # ← 追加
       DB_URL: postgresql+psycopg://cb:cbpass@db:5432/cbdb
     depends_on:
       db:

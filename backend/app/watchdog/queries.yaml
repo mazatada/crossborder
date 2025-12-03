@@ -1,0 +1,10 @@
+queries:
+  - id: "hs-classification-rules"
+    title: "HS Classification Rules for Supplements"
+    description: "Latest HS classification rules and guidance for dietary supplements and health foods."
+  - id: "fda-prior-notice"
+    title: "FDA Prior Notice Requirements"
+    description: "Current requirements for FDA Prior Notice submission, including required data fields and timelines."
+  - id: "labeling-requirements"
+    title: "Food Labeling Requirements"
+    description: "Mandatory labeling requirements for imported food products, including allergen declarations."
