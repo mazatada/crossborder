@@ -9,7 +9,7 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import text, func
 from sqlalchemy.exc import SQLAlchemyError
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 from app.db import db
 from app.models import Job
