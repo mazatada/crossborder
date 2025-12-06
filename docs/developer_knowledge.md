@@ -23,14 +23,30 @@ CI/CDやGit操作で繰り返しやすいミスを防ぐための指針として
    - CI (`.github/workflows/ci.yml`) では `ruff ... --ignore E501` を付与する。
 
 ### Flask-SQLAlchemy と Mypy
-- `db.Model` を継承するモデルクラスでは、Mypyが動的なカラム定義を理解できない場合がある。
-- **対策**: 全フィールドにPythonの型ヒントを明示する。
-  ```python
-  # Bad
-  name = db.Column(db.String(64))
+- **問題**: `db.Column(...)` の戻り値は `Column` 型だが、Pythonのフィールド型宣言（`id: int`）と型が合わないため、代入エラー(`assignment`)が発生する。また、`db.Model` が動的生成されるため、継承元の解決に失敗する場合がある。
 
-  # Good
-  name: str = db.Column(db.String(64))
+- **根本対策（SQLAlchemy 2.0+ & 最新プラグイン）**:
+  `Mapped[int] = mapped_column(...)` を使用する。これが今後の標準。
+
+- **現状の対策（SQLAlchemy 1.x Style）**:
+  1. 親クラスには `db.Model` ではなく、宣言的ベースクラス `Base` (`from .db import Base`) を使用する。
+  2. フィールド定義には明示的な型ヒントをつけ、行末に `# type: ignore` を付与して代入エラーを回避する。
+     ```python
+     # app/models.py
+     from .db import Base
+     
+     class User(Base):
+         id: int = db.Column(db.Integer, primary_key=True)  # type: ignore
+         name: str = db.Column(db.String(64))  # type: ignore
+     ```
+  これにより、利用側コード（`user.id`）では `int` として推論され、定義側の整合性エラーは無視できる。
+
+### 設定ファイル (`mypy.ini`)
+- 厳格にしすぎるとサードパーティ由来の `return Any` エラーなどが大量に出るため、プロジェクトの成熟度に合わせて調整する。
+- 現状の推奨設定:
+  ```ini
+  warn_return_any = False
+  no_implicit_optional = False
   ```
 
 ## 2. Git操作
