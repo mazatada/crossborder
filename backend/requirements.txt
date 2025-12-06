@@ -10,6 +10,10 @@ alembic
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
 pytest>=8.3
+pytest-cov>=4.1.0
 ruff==0.0.287
 black==24.10.0
 mypy==1.11.0
+requests==2.32.3
+openai==1.54.0
+redis==5.0.1

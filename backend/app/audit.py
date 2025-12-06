@@ -91,3 +91,6 @@ def record_event(
     except SQLAlchemyError:
         # 監査は副作用。完全に黙殺して本処理を継続
         pass
+
+# エイリアス
+log_event = record_event

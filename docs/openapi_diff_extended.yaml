@@ -1,0 +1,745 @@
+# OpenAPI Diff: Proposed Additions for Extended APIs
+# このファイルは既存 openapi.yaml への「追記用スニペット」です。
+# ルートの openapi/info/servers/security は既存を利用し、paths/components 以下のみをマージしてください。
+
+paths:
+  /v1/tariffs/{destination_country}/{hs_code}:
+    get:
+      tags: [Tariffs]
+      summary: 関税率取得
+      parameters:
+        - in: path
+          name: destination_country
+          required: true
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: path
+          name: hs_code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: origin_country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: as_of
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 関税率情報
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffRateResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 該当する税率が存在しない
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
+
+  /v1/tariffs/calculate:
+    post:
+      tags: [Tariffs]
+      summary: 関税額計算
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TariffCalculationRequest' }
+      responses:
+        '200':
+          description: 関税額と内訳
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffCalculationResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 税率情報が存在しない
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
+
+  /v1/hs-codes:
+    get:
+      tags: [HS]
+      summary: HSコード検索
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+        - in: query
+          name: chapter
+          required: false
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: HSコード一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCodeSearchResult' }
+
+  /v1/hs-codes/{code}:
+    get:
+      tags: [HS]
+      summary: HSコード詳細取得
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+      responses:
+        '200':
+          description: HSコード詳細
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCode' }
+        '404':
+          description: HSコードが存在しない
+
+  /v1/hs-classifications/{id}:
+    get:
+      tags: [HS]
+      summary: HS分類結果取得（レビュー用）
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: HS分類結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSClassificationReview' }
+        '404':
+          description: HS分類結果が存在しない
+    put:
+      tags: [HS]
+      summary: HS分類結果更新（レビュー確定）
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSClassificationReviewUpdate' }
+      responses:
+        '200':
+          description: 更新後のHS分類結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSClassificationReview' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: HS分類結果が存在しない
+        '409':
+          description: 更新不可状態（ロック中など）
+
+  /v1/hs-rules:
+    get:
+      tags: [Rules]
+      summary: HSルール一覧取得
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema:
+            type: string
+            enum: [draft, active, inactive]
+        - in: query
+          name: scope
+          required: false
+          schema: { type: string }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: HSルール一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRuleList' }
+    post:
+      tags: [Rules]
+      summary: HSルール作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRuleCreateRequest' }
+      responses:
+        '201':
+          description: 作成されたHSルール
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+
+  /v1/hs-rules/{id}:
+    get:
+      tags: [Rules]
+      summary: HSルール詳細取得
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: HSルール詳細
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '404':
+          description: HSルールが存在しない
+    put:
+      tags: [Rules]
+      summary: HSルール更新
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRuleUpdateRequest' }
+      responses:
+        '200':
+          description: 更新後のHSルール
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: HSルールが存在しない
+    delete:
+      tags: [Rules]
+      summary: HSルール削除（論理削除推奨）
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: 削除成功
+        '404':
+          description: HSルールが存在しない
+
+  /v1/hs-rules:test:
+    post:
+      tags: [Rules]
+      summary: HSルールテスト（シミュレーション）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRuleTestRequest' }
+      responses:
+        '200':
+          description: ルール評価結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRuleTestResponse' }
+        '400':
+          description: DSL構文エラーなど
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+
+  /v1/products/{product_id}/compliance:
+    get:
+      tags: [Compliance]
+      summary: 商品別コンプライアンス状態取得
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 商品コンプライアンスビュー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceView' }
+        '404':
+          description: 商品が存在しない
+
+components:
+  schemas:
+    Money:
+      type: object
+      properties:
+        amount: { type: number, format: float }
+        currency: { type: string }
+      required: [amount, currency]
+
+    DutyComponent:
+      type: object
+      properties:
+        type:
+          type: string
+          description: "basic, section301, safeguard, anti_dumping, countervailing など"
+        rate_type:
+          type: string
+          enum: [ad_valorem, specific]
+        rate:
+          type: number
+          format: float
+          description: "0.05 = 5%"
+        amount:
+          type: number
+          format: float
+          description: "計算済み金額"
+        basis:
+          type: string
+          description: "customs_value, quantity など"
+
+    TariffRate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ad_valorem, specific, mixed]
+        ad_valorem_pct:
+          type: number
+          format: float
+        specific:
+          type: number
+          format: float
+        currency:
+          type: string
+        basis_uom:
+          type: string
+
+    TariffRateResponse:
+      type: object
+      properties:
+        destination_country: { type: string }
+        hs_code: { type: string }
+        origin_country: { type: string, nullable: true }
+        as_of: { type: string, format: date }
+        duty_rate:
+          $ref: '#/components/schemas/TariffRate'
+        additional_duties:
+          type: array
+          items:
+            $ref: '#/components/schemas/DutyComponent'
+        metadata:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            source: { type: string }
+            last_updated_at: { type: string, format: date-time }
+
+    TariffCalculationRequest:
+      type: object
+      required: [hs_code, origin_country, destination_country, customs_value]
+      properties:
+        hs_code: { type: string }
+        origin_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        destination_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: number
+          format: float
+        uom:
+          type: string
+        valuation_method:
+          type: string
+          enum: [FOB, CIF, EXW]
+        declaration_date:
+          type: string
+          format: date
+        options:
+          type: object
+          properties:
+            apply_preferential_if_available:
+              type: boolean
+              default: true
+            rounding_mode:
+              type: string
+              enum: [standard, floor, ceil]
+              default: standard
+
+    TariffCalculationResponse:
+      type: object
+      properties:
+        hs_code: { type: string }
+        origin_country: { type: string }
+        destination_country: { type: string }
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        duty:
+          type: object
+          properties:
+            total_amount:
+              type: number
+              format: float
+            currency:
+              type: string
+            components:
+              type: array
+              items:
+                $ref: '#/components/schemas/DutyComponent'
+        applied_rates:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            rules:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string }
+                  description: { type: string }
+                  legal_reference: { type: string }
+
+    HSCode:
+      type: object
+      properties:
+        code: { type: string }
+        normalized_code: { type: string }
+        chapter: { type: string }
+        heading: { type: string }
+        description_en: { type: string }
+        description_local: { type: string }
+        default_required_uom: { type: string }
+        notes:
+          type: object
+          properties:
+            chapter_note: { type: string }
+            exclusions:
+              type: array
+              items: { type: string }
+        valid_from: { type: string, format: date }
+        valid_to:
+          type: string
+          format: date
+          nullable: true
+        metadata:
+          type: object
+          properties:
+            source: { type: string }
+            last_updated_at: { type: string, format: date-time }
+
+    HSCodeSummary:
+      type: object
+      properties:
+        code: { type: string }
+        description_en: { type: string }
+        description_local: { type: string }
+        default_required_uom: { type: string }
+
+    HSCodeSearchResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/HSCodeSummary'
+        next_cursor:
+          type: string
+          nullable: true
+
+    HSRule:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl: { type: string }
+        effect:
+          type: object
+        status:
+          type: string
+          enum: [draft, active, inactive]
+        version: { type: integer }
+        created_by: { type: string }
+        updated_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    HSRuleList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              name: { type: string }
+              description: { type: string }
+              priority: { type: integer }
+              scope: { type: string }
+              status:
+                type: string
+                enum: [draft, active, inactive]
+              version: { type: integer }
+              updated_at: { type: string, format: date-time }
+        next_cursor:
+          type: string
+          nullable: true
+
+    HSRuleCreateRequest:
+      type: object
+      required: [name, priority, scope, condition_dsl, effect, status]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl: { type: string }
+        effect:
+          type: object
+        status:
+          type: string
+          enum: [draft, active, inactive]
+
+    HSRuleUpdateRequest:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl: { type: string }
+        effect:
+          type: object
+        status:
+          type: string
+          enum: [draft, active, inactive]
+
+    HSRuleTestRequest:
+      type: object
+      required: [rule, product_sample]
+      properties:
+        rule:
+          type: object
+          properties:
+            name: { type: string }
+            priority: { type: integer }
+            scope: { type: string }
+            condition_dsl: { type: string }
+            effect:
+              type: object
+          required: [name, priority, scope, condition_dsl, effect]
+        product_sample:
+          type: object
+          properties:
+            name: { type: string }
+            ingredients:
+              type: array
+              items:
+                type: object
+                properties:
+                  name: { type: string }
+                  pct: { type: number, format: float }
+            category: { type: string }
+
+    HSRuleTestResponse:
+      type: object
+      properties:
+        matched: { type: boolean }
+        reason:
+          type: array
+          items: { type: string }
+        effect_preview:
+          type: object
+
+    HSClassificationCandidate:
+      type: object
+      properties:
+        code: { type: string }
+        description: { type: string }
+        confidence: { type: number, format: float }
+        rationale:
+          type: array
+          items: { type: string }
+        required_uom: { type: string }
+
+    RiskFlag:
+      type: object
+      properties:
+        code: { type: string }
+        severity:
+          type: string
+          enum: [low, medium, high]
+        description: { type: string }
+
+    HSClassificationReview:
+      type: object
+      properties:
+        id: { type: string }
+        trace_id: { type: string }
+        product_id: { type: string }
+        status: { type: string }
+        hs_candidates:
+          type: array
+          items:
+            $ref: '#/components/schemas/HSClassificationCandidate'
+        final_hs_code: { type: string }
+        final_source:
+          type: string
+          description: "system, manual, rule, llm など"
+        duty_rate:
+          $ref: '#/components/schemas/TariffRate'
+        risk_flags:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskFlag'
+        review_required: { type: boolean }
+        reviewed_by:
+          type: string
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        review_comment:
+          type: string
+          nullable: true
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    HSClassificationReviewUpdate:
+      type: object
+      properties:
+        final_hs_code: { type: string }
+        final_source: { type: string }
+        duty_rate_override:
+          $ref: '#/components/schemas/TariffRate'
+        review_required: { type: boolean }
+        review_comment: { type: string }
+        reviewed_by: { type: string }
+
+    DutySnapshot:
+      type: object
+      properties:
+        destination_country: { type: string }
+        origin_country: { type: string }
+        last_calculated_at:
+          type: string
+          format: date-time
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        duty:
+          type: object
+          properties:
+            total_amount:
+              type: number
+              format: float
+            currency: { type: string }
+
+    DocsSnapshot:
+      type: object
+      properties:
+        clearance_pack_job_id:
+          type: string
+          nullable: true
+        clearance_pack_status:
+          type: string
+          nullable: true
+        prior_notice_required:
+          type: boolean
+          nullable: true
+        prior_notice_status:
+          type: string
+          nullable: true
+
+    AuditSummary:
+      type: object
+      properties:
+        last_updated_by: { type: string }
+        last_updated_at: { type: string, format: date-time }
+
+    HSClassificationSummary:
+      type: object
+      properties:
+        final_hs_code: { type: string }
+        final_source: { type: string }
+        review_required: { type: boolean }
+        reviewed_by:
+          type: string
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        risk_flags:
+          type: array
+          items:
+            $ref: '#/components/schemas/RiskFlag'
+
+    ComplianceView:
+      type: object
+      properties:
+        product_id: { type: string }
+        trace_id: { type: string }
+        hs_classification:
+          $ref: '#/components/schemas/HSClassificationSummary'
+        duty:
+          $ref: '#/components/schemas/DutySnapshot'
+        docs:
+          $ref: '#/components/schemas/DocsSnapshot'
+        audit:
+          $ref: '#/components/schemas/AuditSummary'

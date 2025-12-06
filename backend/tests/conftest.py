@@ -27,3 +27,17 @@ def setup_database():
     init_db()
     yield
 
+
+@pytest.fixture
+def api_key_header():
+    """APIキーヘッダー"""
+    # テスト用のAPIキーを設定
+    os.environ.setdefault("API_KEYS", "test-api-key")
+    return {"Authorization": "Bearer test-api-key"}
+
+
+@pytest.fixture
+def db_session():
+    """DBセッション"""
+    from app.db import db
+    return db.session

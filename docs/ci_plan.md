@@ -64,6 +64,6 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
 - (Unmarked): Fast unit tests.
 
 ### Docker Services
-- `backend`: Flask API & Workers.
-- `db`: PostgreSQL (Port 54320 on host).
+- `backend`: Flask API & Workers (Port 65001 on host).
+- `db`: PostgreSQL (Port 65432 on host).
 - `playwright`: E2E Test runner.

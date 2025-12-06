@@ -60,3 +60,75 @@ class DocumentPackage(db.Model):
     invoice_uom = db.Column(db.String(8), nullable=False)
     invoice_payload = db.Column(db.JSON, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class WebhookEndpoint(db.Model):
+    __tablename__ = "webhook_endpoints"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    url = db.Column(db.String(512), nullable=False)
+    secret = db.Column(db.String(128), nullable=False)  # HMAC secret
+    events = db.Column(db.JSON, nullable=False)  # List of event types to subscribe
+    active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+class OrderStatus(db.Model):
+    __tablename__ = "order_statuses"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    order_id = db.Column(db.String(128), nullable=False, index=True)
+    status = db.Column(db.String(32), nullable=False)  # PAID, CANCELED
+    ts = db.Column(db.DateTime, nullable=False)  # Timestamp from external system
+    customer_region = db.Column(db.String(64), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class WebhookDLQ(db.Model):
+    __tablename__ = "webhook_dlq"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    webhook_id = db.Column(db.Integer, db.ForeignKey("webhook_endpoints.id"), nullable=False)
+    event_type = db.Column(db.String(64), nullable=False)
+    payload = db.Column(db.JSON, nullable=False)
+    trace_id = db.Column(db.String(64), index=True, nullable=True)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    last_error = db.Column(db.Text, nullable=True)
+    last_status_code = db.Column(db.Integer, nullable=True)
+    replayed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)  # 72 hours from creation
+
+
+class HSClassification(db.Model):
+    """HS分類結果モデル"""
+    __tablename__ = "hs_classifications"
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    product_id = db.Column(db.String(128), index=True, nullable=True)
+    trace_id = db.Column(db.String(64), index=True, nullable=False)
+    
+    # 入力データ (product object)
+    product_name = db.Column(db.Text, nullable=False)
+    category = db.Column(db.String(64), nullable=True, index=True)
+    origin_country = db.Column(db.String(2), nullable=True)
+    ingredients = db.Column(db.JSON, nullable=True)  # [{"id": "ing_xxx", "pct": 30.0}]
+    process = db.Column(db.JSON, nullable=True)  # ["baking", "packaging"]
+    
+    # 分類結果 (hs_candidates)
+    hs_candidates = db.Column(db.JSON, nullable=False)  # 全候補 (OpenAPI準拠)
+    final_hs_code = db.Column(db.String(16), nullable=False, index=True)
+    required_uom = db.Column(db.String(8), nullable=False)
+    review_required = db.Column(db.Boolean, default=False, nullable=False, index=True)
+    
+    # 拡張フィールド
+    duty_rate = db.Column(db.JSON, nullable=True)
+    risk_flags = db.Column(db.JSON, nullable=True)
+    quota_applicability = db.Column(db.String(64), nullable=True)
+    explanations = db.Column(db.JSON, nullable=True)
+    
+    # メタデータ
+    classification_method = db.Column(db.String(32), default="rule_based")
+    processing_time_ms = db.Column(db.Integer, nullable=True)
+    cache_hit = db.Column(db.Boolean, default=False)
+    rules_version = db.Column(db.String(16), nullable=True)
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    def __repr__(self):
+        return f"<HSClassification {self.id} hs={self.final_hs_code} trace={self.trace_id}>"

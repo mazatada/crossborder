@@ -1,17 +1,264 @@
-- id: hs19_bakery_wheat_baked
-  when:
-    all:
-      - contains_any:
-          ingredient_ids: ["ing_wheat_flour"]
-      - process_any: ["baked", "roasted"]
-  then:
-    heading_hints: ["1905.90"]
-    rationale: ["wheat flour present", "baked product"]
+# HS分類ルール - 食品カテゴリ
+# バージョン: 1.1.0
+# 最終更新: 2025-12-05
 
-- id: hs21_mixes_preparations
-  when:
-    any:
-      - process_any: ["mix", "powder"]
-  then:
-    heading_hints: ["2106.90"]
-    rationale: ["miscellaneous edible preparations"]
+version: "1.1.0"
+category: "food"
+metadata:
+  description: "Food products HS classification rules"
+  last_updated: "2025-12-05"
+  author: "Crossborder Team"
+
+rules:
+  # ========== 小麦ベースの焼き菓子 (1905.90) ==========
+  - id: "hs_food_001"
+    name: "Wheat-based baked goods"
+    hs_code: "1905.90"
+    description: "Bread, pastry, cakes, biscuits and other bakers' wares"
+    priority: 10
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_wheat_flour", "ing_flour", "ing_wheat"]
+        - process_any:
+            field: "process"
+            values: ["baking", "baked"]
+  
+  # ========== ココア含有製品 (1806.90) ==========
+  - id: "hs_food_002"
+    name: "Cocoa-containing products"
+    hs_code: "1806.90"
+    description: "Chocolate and other food preparations containing cocoa"
+    priority: 8
+    weight: 0.6
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      any:
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_cocoa", "ing_chocolate", "ing_cacao", "ing_cocoa_mass"]
+  
+  # ========== 砂糖菓子 (ココアなし) (1704.90) ==========
+  - id: "hs_food_003"
+    name: "Sugar confectionery (no cocoa)"
+    hs_code: "1704.90"
+    description: "Sugar confectionery not containing cocoa"
+    priority: 7
+    weight: 0.7
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "confectionery"
+        - not_contains_ids:
+            field: "ingredients"
+            values: ["ing_cocoa", "ing_chocolate", "ing_cacao", "ing_cocoa_mass"]
+  
+  # ========== その他の食品調製品 (2106.90) - レビュー必須 ==========
+  - id: "hs_food_004"
+    name: "Other food preparations (requires review)"
+    hs_code: "2106.90"
+    description: "Food preparations not elsewhere specified or included"
+    priority: 5
+    weight: 0.5
+    required_uom: "kg"
+    requires_review: true  # 必ず人間レビュー
+    effect: "include"
+    conditions:
+      any:
+        - category_is:
+            field: "category"
+            value: "other_food_preparations"
+        - category_is:
+            field: "category"
+            value: "supplements"
+  
+  # ========== 米菓子 (1905.90) ==========
+  - id: "hs_food_005"
+    name: "Rice-based snacks"
+    hs_code: "1905.90"
+    description: "Rice crackers and similar baked goods"
+    priority: 9
+    weight: 0.75
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_rice", "ing_rice_flour"]
+        - process_any:
+            field: "process"
+            values: ["baking", "baked", "roasting", "roasted"]
+  
+  # ========== 乳製品含有菓子 (1806.90) ==========
+  # ココアが入っている場合が多いが、入っていない場合は1704になる可能性もある
+  # ここでは便宜上1806としておくが、優先度を下げる
+  - id: "hs_food_006"
+    name: "Dairy-containing confectionery"
+    hs_code: "1806.90"
+    description: "Confectionery containing milk or dairy products"
+    priority: 4
+    weight: 0.5
+    required_uom: "kg"
+    requires_review: true
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "confectionery"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_milk", "ing_cream", "ing_butter", "ing_cheese", "ing_milk_solids"]
+  
+  # ========== ナッツ含有製品 (2008.19) ==========
+  - id: "hs_food_007"
+    name: "Nut-based products"
+    hs_code: "2008.19"
+    description: "Nuts and other seeds, prepared or preserved"
+    priority: 8
+    weight: 0.7
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_peanuts", "ing_almonds", "ing_walnuts", "ing_cashews"]
+        - process_any:
+            field: "process"
+            values: ["roasting", "roasted", "salting", "salted", "mixing"]
+  
+  # ========== 高含有率小麦製品 (1905.90) ==========
+  - id: "hs_food_008"
+    name: "High wheat content baked goods"
+    hs_code: "1905.90"
+    description: "Baked goods with high wheat flour content"
+    priority: 11
+    weight: 0.85
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - ingredient_pct_threshold:
+            field: "ingredients"
+            ingredient_id: "ing_wheat_flour"
+            min_pct: 30.0
+        - process_any:
+            field: "process"
+            values: ["baking", "baked"]
+
+  # ========== チーズ (0406.30) ==========
+  - id: "hs_food_009"
+    name: "Processed Cheese"
+    hs_code: "0406.30"
+    description: "Processed cheese, not grated or powdered"
+    priority: 9
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "dairy"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_cheese", "ing_cheddar_cheese"]
+        - process_any:
+            field: "process"
+            values: ["heating", "emulsifying", "grinding"]
+
+  # ========== 牛肉調整品 (1602.50) ==========
+  - id: "hs_food_010"
+    name: "Prepared Beef Products"
+    hs_code: "1602.50"
+    description: "Prepared or preserved meat of bovine animals"
+    priority: 9
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "meat"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_beef", "ing_beef_meat"]
+
+  # ========== 魚缶詰 (1604.14) ==========
+  - id: "hs_food_011"
+    name: "Prepared Tuna"
+    hs_code: "1604.14"
+    description: "Tunas, skipjack and bonito (Sarda spp.) prepared or preserved"
+    priority: 9
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "seafood"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_tuna", "ing_tuna_fillet"]
+        - process_any:
+            field: "process"
+            values: ["canning", "sterilization"]
+
+  # ========== 茶 (0902.10) ==========
+  - id: "hs_food_012"
+    name: "Green Tea"
+    hs_code: "0902.10"
+    description: "Green tea (not fermented)"
+    priority: 9
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "beverages"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_green_tea_leaves", "ing_tea"]
+
+  # ========== オレンジジュース (2009.11) ==========
+  - id: "hs_food_013"
+    name: "Orange Juice"
+    hs_code: "2009.11"
+    description: "Orange juice, frozen"
+    priority: 9
+    weight: 0.8
+    required_uom: "kg"
+    requires_review: false
+    effect: "include"
+    conditions:
+      all:
+        - category_is:
+            field: "category"
+            value: "beverages"
+        - contains_any_ids:
+            field: "ingredients"
+            values: ["ing_orange_juice_concentrate", "ing_orange_juice"]
