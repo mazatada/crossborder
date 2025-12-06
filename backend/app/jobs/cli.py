@@ -9,6 +9,8 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import text, func
 from sqlalchemy.exc import SQLAlchemyError
 
+from typing import Any, Dict, Optional, Union
+
 from app.db import db
 from app.models import Job
 from app.audit import record_event
@@ -277,7 +279,7 @@ def _after_success(job, result):
                 )
 
 
-def _schedule_retry(session, job: Job, err: dict, backoff_sec: float = None):
+def _schedule_retry(session, job: Job, err: dict, backoff_sec: Optional[float] = None):
     job.status = "retrying"
     job.error = err
     if backoff_sec is not None:
@@ -344,7 +346,7 @@ def dispatch(job: Job):
             handler = _handle_echo
         else:
             raise RuntimeError(f"No handler registered for type={job.type}")
-    payload = job.payload_json or {}
+    payload: Dict[str, Any] = job.payload_json or {}
     # attempts は job.attempts を真実源とし、handler へ引き渡す
     payload["_job_attempts"] = job.attempts
     trace_id = job.trace_id or ""
