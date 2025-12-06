@@ -29,6 +29,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_trace_id  ON public.audit_events (tr
 CREATE INDEX IF NOT EXISTS idx_audit_events_event     ON public.audit_events (event);
 """
 
+
 def _detect_schema(conn) -> str:
     cols = [r[0] for r in conn.execute(text(CHECK_COL_SQL)).fetchall()]
     if not cols:
@@ -39,6 +40,7 @@ def _detect_schema(conn) -> str:
     if "at" in cols and "details_json" in cols and "event" in cols:
         return "new"
     return "new"
+
 
 def record_event(
     *,
@@ -60,13 +62,15 @@ def record_event(
                 payload = {
                     "target_type": target_type,
                     "target_id": target_id,
-                    **(details or {})
+                    **(details or {}),
                 }
                 conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO public.audit_events (ts, trace_id, event, payload)
                         VALUES (now(), :trace_id, :event, CAST(:payload AS JSONB))
-                    """),
+                    """
+                    ),
                     {
                         "trace_id": trace_id,
                         "event": event,
@@ -76,10 +80,12 @@ def record_event(
             else:
                 payload = json.dumps(details, ensure_ascii=False) if details else None
                 conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO public.audit_events (at, trace_id, event, target_type, target_id, details_json)
                         VALUES (now(), :trace_id, :event, :target_type, :target_id, CAST(:details_json AS JSONB))
-                    """),
+                    """
+                    ),
                     {
                         "trace_id": trace_id,
                         "event": event,
@@ -91,6 +97,7 @@ def record_event(
     except SQLAlchemyError:
         # 監査は副作用。完全に黙殺して本処理を継続
         pass
+
 
 # エイリアス
 log_event = record_event

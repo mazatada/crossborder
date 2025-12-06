@@ -34,7 +34,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Python lint (ruff)
-        run: docker compose run --rm --entrypoint ruff backend check app tests
+        run: docker compose run --rm --entrypoint ruff backend check --ignore E501 app tests
 
       - name: Python style (black)
         run: docker compose run --rm --entrypoint black backend --check app

@@ -4,7 +4,10 @@ from app.webhook import post_event
 
 @register("webhook_retry")
 def handle(payload: dict, *, job_id: int, trace_id: str):
-    from app.jobs.cli import NonRetriableError, _next_backoff  # late import to avoid circular
+    from app.jobs.cli import (
+        NonRetriableError,
+        _next_backoff,
+    )  # late import to avoid circular
     from app.db import db
     from app.models import WebhookDLQ
     from datetime import datetime, timedelta
@@ -34,17 +37,22 @@ def handle(payload: dict, *, job_id: int, trace_id: str):
                     attempts=attempt,
                     last_error=resp.get("error", "Unknown error"),
                     last_status_code=resp.get("status"),
-                    expires_at=datetime.utcnow() + timedelta(hours=72)
+                    expires_at=datetime.utcnow() + timedelta(hours=72),
                 )
                 db.session.add(dlq_entry)
                 db.session.commit()
             raise NonRetriableError("webhook retry exhausted, moved to DLQ")
         # Raise to trigger retry path in worker
         from app.jobs.cli import RetryableError
+
         backoff = _next_backoff(attempt + 1, base=retry_base)
         raise RetryableError(
             f"Webhook returned {resp['status']}, retrying in {backoff.total_seconds()}s",
-            backoff_sec=backoff.total_seconds()
+            backoff_sec=backoff.total_seconds(),
         )
 
-    return {"status": resp.get("status"), "trace_id": target_trace, "event_type": event_type}
+    return {
+        "status": resp.get("status"),
+        "trace_id": target_trace,
+        "event_type": event_type,
+    }

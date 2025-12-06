@@ -24,6 +24,7 @@ def client(app):
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     from app.db import init_db
+
     init_db()
     yield
 
@@ -40,4 +41,5 @@ def api_key_header():
 def db_session():
     """DBセッション"""
     from app.db import db
+
     return db.session

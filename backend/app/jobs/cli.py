@@ -13,16 +13,18 @@ from app.db import db
 from app.models import Job
 from app.audit import record_event
 from app.webhook import post_event
-from app.jobs.handlers import clearance_pack, pn_submit, webhook_retry
 from app.jobs import handlers as job_handlers
 
 REGISTRY = dict(job_handlers.REGISTRY)
 
+
 class NonRetriableError(Exception):
     """Raise from handlers to mark job as failed without retry."""
 
+
 class RetryableError(Exception):
     """Raise from handlers to trigger retry with custom backoff."""
+
     def __init__(self, message: str, backoff_sec: float = 60):
         super().__init__(message)
         self.backoff_sec = backoff_sec
@@ -32,6 +34,7 @@ class RetryableError(Exception):
 def _handle_echo(payload: dict, *, job_id: int, trace_id: str):
     return {"ok": True, "job_id": job_id, "echo": payload, "trace_id": trace_id or None}
 
+
 WORKER_CONCURRENCY = int(os.getenv("WORKER_CONCURRENCY", "4"))
 SCHEDULER_INTERVAL_SEC = int(os.getenv("SCHEDULER_INTERVAL_SEC", "10"))
 VISIBILITY_TIMEOUT_SEC = int(os.getenv("VISIBILITY_TIMEOUT_SEC", "1800"))
@@ -40,39 +43,53 @@ PICK_BATCH = int(os.getenv("PICK_BATCH", "10"))
 WEBHOOK_RETRY_MAX_ATTEMPTS = int(os.getenv("WEBHOOK_RETRY_MAX_ATTEMPTS", "5"))
 WEBHOOK_RETRY_BASE_SEC = int(os.getenv("WEBHOOK_RETRY_BASE_SEC", "30"))
 
+
 def _now_utc():
     return datetime.now(timezone.utc)
+
 
 def _log(**kw):
     kw.setdefault("ts", _now_utc().isoformat())
     print(json.dumps(kw, ensure_ascii=False), flush=True)
 
+
 def _db_session():
     from app.factory import create_app
+
     app = create_app()
     return app.app_context(), db.session
 
+
 def scheduler_tick(session):
     try:
-        n1 = session.execute(text("""
+        n1 = session.execute(
+            text(
+                """
             UPDATE jobs
             SET status = 'queued', updated_at = now()
             WHERE status = 'retrying'
               AND (next_run_at IS NULL OR next_run_at <= now());
-        """)).rowcount
+        """
+            )
+        ).rowcount
 
-        n2 = session.execute(text(f"""
+        n2 = session.execute(
+            text(
+                f"""
             UPDATE jobs
             SET status = 'retrying', next_run_at = now() + interval '30 seconds', updated_at = now()
             WHERE status = 'running'
               AND updated_at <= (now() - interval '{VISIBILITY_TIMEOUT_SEC} seconds');
-        """)).rowcount
+        """
+            )
+        ).rowcount
 
         session.commit()
         _log(event="SCHEDULER_TICK", queued_from_retrying=n1, retried_from_running=n2)
     except SQLAlchemyError as e:
         session.rollback()
         _log(level="error", event="SCHEDULER_ERROR", error=str(e))
+
 
 def scheduler_loop():
     ctx, session = _db_session()
@@ -82,8 +99,11 @@ def scheduler_loop():
             scheduler_tick(session)
             time.sleep(SCHEDULER_INTERVAL_SEC)
 
+
 def pick_batch(session, batch=PICK_BATCH):
-    rows = session.execute(text("""
+    rows = session.execute(
+        text(
+            """
         WITH cte AS (
           SELECT id
           FROM jobs
@@ -98,7 +118,10 @@ def pick_batch(session, batch=PICK_BATCH):
         FROM cte
         WHERE j.id = cte.id
         RETURNING j.id;
-    """), {"batch": batch}).fetchall()
+    """
+        ),
+        {"batch": batch},
+    ).fetchall()
 
     ids = [r[0] for r in rows]
     if not ids:
@@ -109,11 +132,14 @@ def pick_batch(session, batch=PICK_BATCH):
     session.commit()
     return jobs
 
+
 def _next_backoff(attempt: int, base=30, factor=2, jitter=0.2):
     import random
+
     sec = base * (factor ** max(0, attempt - 1))
     j = sec * jitter
     return timedelta(seconds=int(sec + random.uniform(-j, j)))
+
 
 def _complete(session, job: Job, result: dict):
     job.status = "succeeded"
@@ -122,22 +148,26 @@ def _complete(session, job: Job, result: dict):
     job.updated_at = _now_utc()
     session.add(job)
 
+
 def _heartbeat(session, job: Job):
     job.updated_at = _now_utc()
     session.add(job)
     session.commit()
 
+
 def _after_success(job, result):
     # イベント名はジョブタイプに応じて変換
     event_type = {
-      "clearance_pack": "DOCS_PACKAGED",
-      "pn_submit": "PN_SUBMITTED",
+        "clearance_pack": "DOCS_PACKAGED",
+        "pn_submit": "PN_SUBMITTED",
     }.get(job.type, f"JOB_{job.type.upper()}_SUCCEEDED")
 
     payload = {
         "job_id": job.id,
         "event_type": event_type,
-        "occurred_at": job.updated_at.isoformat() if getattr(job, "updated_at", None) else None,
+        "occurred_at": (
+            job.updated_at.isoformat() if getattr(job, "updated_at", None) else None
+        ),
         "trace_id": job.trace_id,
         "result": result,
     }
@@ -145,16 +175,26 @@ def _after_success(job, result):
         resp = post_event(event_type, payload, trace_id=job.trace_id)
         if resp.get("status") and resp["status"] >= 500:
             raise RuntimeError(f"webhook status {resp.get('status')}")
-        record_event(event="WEBHOOK_POST", trace_id=job.trace_id or "", payload={
-            "url": os.getenv("WEBHOOK_URL",""),
-            "status": resp.get("status"),
-            "latency_ms": resp.get("latency_ms"),
-            "event_type": event_type,
-            "job_id": job.id,
-        })
+        record_event(
+            event="WEBHOOK_POST",
+            trace_id=job.trace_id or "",
+            payload={
+                "url": os.getenv("WEBHOOK_URL", ""),
+                "status": resp.get("status"),
+                "latency_ms": resp.get("latency_ms"),
+                "event_type": event_type,
+                "job_id": job.id,
+            },
+        )
     except Exception as e:
         err = {"class": e.__class__.__name__, "message": str(e)}
-        _log(level="error", event="WEBHOOK_POST_FAILED", job_id=job.id, type=job.type, error=err["message"])
+        _log(
+            level="error",
+            event="WEBHOOK_POST_FAILED",
+            job_id=job.id,
+            type=job.type,
+            error=err["message"],
+        )
         # webhook_retry 自身は再送ジョブを作らず、監査だけ残す
         if job.type == "webhook_retry":
             try:
@@ -168,7 +208,13 @@ def _after_success(job, result):
                     error_message=err["message"],
                 )
             except Exception:
-                _log(level="error", event="AUDIT_LOG_FAILED", job_id=job.id, type=job.type, reason="record_event failed after webhook failure")
+                _log(
+                    level="error",
+                    event="AUDIT_LOG_FAILED",
+                    job_id=job.id,
+                    type=job.type,
+                    reason="record_event failed after webhook failure",
+                )
             return
         try:
             retry_job = Job(
@@ -187,7 +233,12 @@ def _after_success(job, result):
             )
             db.session.add(retry_job)
             db.session.commit()
-            _log(event="WEBHOOK_RETRY_ENQUEUED", job_id=job.id, retry_job_id=retry_job.id, event_type=event_type)
+            _log(
+                event="WEBHOOK_RETRY_ENQUEUED",
+                job_id=job.id,
+                retry_job_id=retry_job.id,
+                event_type=event_type,
+            )
             record_event(
                 event="WEBHOOK_POST_FAILED",
                 trace_id=job.trace_id,
@@ -200,7 +251,13 @@ def _after_success(job, result):
             )
         except Exception as e2:
             db.session.rollback()
-            _log(level="error", event="WEBHOOK_RETRY_ENQUEUE_FAILED", job_id=job.id, type=job.type, error=str(e2))
+            _log(
+                level="error",
+                event="WEBHOOK_RETRY_ENQUEUE_FAILED",
+                job_id=job.id,
+                type=job.type,
+                error=str(e2),
+            )
             try:
                 record_event(
                     event="WEBHOOK_RETRY_ENQUEUE_FAILED",
@@ -211,8 +268,15 @@ def _after_success(job, result):
                     error_message=str(e2),
                 )
             except Exception:
-                _log(level="error", event="AUDIT_LOG_FAILED", job_id=job.id, type=job.type, reason="record_event failed after webhook failure")
-    
+                _log(
+                    level="error",
+                    event="AUDIT_LOG_FAILED",
+                    job_id=job.id,
+                    type=job.type,
+                    reason="record_event failed after webhook failure",
+                )
+
+
 def _schedule_retry(session, job: Job, err: dict, backoff_sec: float = None):
     job.status = "retrying"
     job.error = err
@@ -223,11 +287,13 @@ def _schedule_retry(session, job: Job, err: dict, backoff_sec: float = None):
     job.updated_at = _now_utc()
     session.add(job)
 
+
 def _fail(session, job: Job, err: dict):
     job.status = "failed"
     job.error = err
     job.updated_at = _now_utc()
     session.add(job)
+
 
 def requeue_job(job_id: int, *, session=None):
     sess = session or db.session
@@ -250,6 +316,7 @@ def requeue_job(job_id: int, *, session=None):
     )
     return job
 
+
 def cancel_job(job_id: int, *, session=None):
     sess = session or db.session
     job = sess.get(Job, job_id)
@@ -269,6 +336,7 @@ def cancel_job(job_id: int, *, session=None):
     )
     return job
 
+
 def dispatch(job: Job):
     handler = REGISTRY.get(job.type)
     if not handler:
@@ -281,6 +349,7 @@ def dispatch(job: Job):
     payload["_job_attempts"] = job.attempts
     trace_id = job.trace_id or ""
     return handler(payload, job_id=job.id, trace_id=trace_id)
+
 
 def worker_once(session):
     batch = pick_batch(session)
@@ -313,8 +382,12 @@ def worker_once(session):
                 target_id=job.id,
                 type=job.type,
             )
-            _log(event="JOB_SUCCEEDED", job_id=job.id, type=job.type,
-                 latency_ms=int((time.time() - t0) * 1000))
+            _log(
+                event="JOB_SUCCEEDED",
+                job_id=job.id,
+                type=job.type,
+                latency_ms=int((time.time() - t0) * 1000),
+            )
             done += 1
 
         except Exception as e:
@@ -340,8 +413,15 @@ def worker_once(session):
                         error_message=err["message"],
                         retriable=False,
                     )
-                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
-                         attempts=job.attempts, error=err["message"], retriable=False)
+                    _log(
+                        level="error",
+                        event="JOB_FAILED",
+                        job_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error=err["message"],
+                        retriable=False,
+                    )
                 elif isinstance(e, RetryableError):
                     # Use custom backoff from RetryableError
                     _schedule_retry(session, job, err, backoff_sec=e.backoff_sec)
@@ -357,8 +437,15 @@ def worker_once(session):
                         error_message=err["message"],
                         backoff_sec=e.backoff_sec,
                     )
-                    _log(level="warning", event="JOB_RETRYING", job_id=job.id, type=job.type,
-                         attempts=job.attempts, error=err["message"], backoff_sec=e.backoff_sec)
+                    _log(
+                        level="warning",
+                        event="JOB_RETRYING",
+                        job_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error=err["message"],
+                        backoff_sec=e.backoff_sec,
+                    )
                 elif job.attempts < MAX_ATTEMPTS:
                     _schedule_retry(session, job, err)
                     session.commit()
@@ -372,8 +459,14 @@ def worker_once(session):
                         error_class=err["class"],
                         error_message=err["message"],
                     )
-                    _log(level="warning", event="JOB_RETRYING", job_id=job.id, type=job.type,
-                         attempts=job.attempts, error=err["message"])
+                    _log(
+                        level="warning",
+                        event="JOB_RETRYING",
+                        job_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error=err["message"],
+                    )
                 else:
                     _fail(session, job, err)
                     session.commit()
@@ -388,12 +481,25 @@ def worker_once(session):
                         error_message=err["message"],
                         retriable=True,
                     )
-                    _log(level="error", event="JOB_FAILED", job_id=job.id, type=job.type,
-                         attempts=job.attempts, error=err["message"], retriable=True)
+                    _log(
+                        level="error",
+                        event="JOB_FAILED",
+                        job_id=job.id,
+                        type=job.type,
+                        attempts=job.attempts,
+                        error=err["message"],
+                        retriable=True,
+                    )
             except Exception as e2:
                 session.rollback()
-                _log(level="error", event="JOB_STATUS_WRITE_FAILED", job_id=job.id, error=str(e2))
+                _log(
+                    level="error",
+                    event="JOB_STATUS_WRITE_FAILED",
+                    job_id=job.id,
+                    error=str(e2),
+                )
     return done
+
 
 def worker_loop():
     ctx, session = _db_session()
@@ -404,6 +510,7 @@ def worker_loop():
             n = worker_once(session)
             if n == 0:
                 time.sleep(0.2)
+
 
 def _get_mode():
     # 1) 環境変数 MODE
@@ -418,6 +525,7 @@ def _get_mode():
         except Exception:
             return ""
     return ""
+
 
 def main():
     mode = _get_mode()

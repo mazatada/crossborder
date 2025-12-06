@@ -2,12 +2,13 @@ import pytest
 from app.models import AuditEvent
 from app.db import db
 
+
 @pytest.fixture
 def audit_data():
     # Clean up before
     db.session.query(AuditEvent).delete()
     db.session.commit()
-    
+
     # Insert dummy data
     events = [
         AuditEvent(trace_id="trace-1", event="JOB_QUEUED", payload={"job": 1}),
@@ -21,6 +22,7 @@ def audit_data():
     db.session.query(AuditEvent).delete()
     db.session.commit()
 
+
 @pytest.mark.integration
 def test_audit_trace(client, audit_data):
     resp = client.get("/v1/audit/trace/trace-1")
@@ -29,6 +31,7 @@ def test_audit_trace(client, audit_data):
     assert len(data["events"]) == 2
     assert data["events"][0]["event"] == "JOB_QUEUED"
     assert data["events"][1]["event"] == "JOB_SUCCEEDED"
+
 
 @pytest.mark.integration
 def test_audit_recent(client, audit_data):

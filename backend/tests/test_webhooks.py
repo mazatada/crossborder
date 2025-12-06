@@ -152,7 +152,7 @@ def test_list_dlq(client):
         url="https://example.com/webhook",
         secret="test-secret",
         events=["TEST"],
-        active=True
+        active=True,
     )
     db.session.add(webhook)
     db.session.commit()
@@ -165,7 +165,7 @@ def test_list_dlq(client):
         attempts=5,
         last_error="Connection timeout",
         last_status_code=503,
-        expires_at=datetime.utcnow() + timedelta(hours=72)
+        expires_at=datetime.utcnow() + timedelta(hours=72),
     )
     db.session.add(dlq_entry)
     db.session.commit()
@@ -188,6 +188,7 @@ def test_replay_dlq(client, monkeypatch):
         class MockResponse:
             status_code = 200
             text = "OK"
+
         return MockResponse()
 
     monkeypatch.setattr(requests, "post", mock_post)
@@ -197,7 +198,7 @@ def test_replay_dlq(client, monkeypatch):
         url="https://example.com/webhook",
         secret="test-secret",
         events=["TEST"],
-        active=True
+        active=True,
     )
     db.session.add(webhook)
     db.session.commit()
@@ -210,14 +211,14 @@ def test_replay_dlq(client, monkeypatch):
         attempts=5,
         last_error="Connection timeout",
         last_status_code=503,
-        expires_at=datetime.utcnow() + timedelta(hours=72)
+        expires_at=datetime.utcnow() + timedelta(hours=72),
     )
     db.session.add(dlq_entry)
     db.session.commit()
 
     resp = client.post(
         f"/v1/integrations/webhooks/dlq/{dlq_entry.id}/replay",
-        json={"traceId": "TEST-TRACE-005"}
+        json={"traceId": "TEST-TRACE-005"},
     )
 
     assert resp.status_code == 200
@@ -233,7 +234,7 @@ def test_cleanup_dlq(client):
         url="https://example.com/webhook",
         secret="test-secret",
         events=["TEST"],
-        active=True
+        active=True,
     )
     db.session.add(webhook)
     db.session.commit()
@@ -247,14 +248,13 @@ def test_cleanup_dlq(client):
         attempts=5,
         last_error="Connection timeout",
         last_status_code=503,
-        expires_at=datetime.utcnow() - timedelta(hours=1)  # Already expired
+        expires_at=datetime.utcnow() - timedelta(hours=1),  # Already expired
     )
     db.session.add(expired_entry)
     db.session.commit()
 
     resp = client.post(
-        "/v1/integrations/webhooks/dlq/cleanup",
-        json={"traceId": "TEST-TRACE-007"}
+        "/v1/integrations/webhooks/dlq/cleanup", json={"traceId": "TEST-TRACE-007"}
     )
 
     assert resp.status_code == 200
@@ -265,21 +265,21 @@ def test_cleanup_dlq(client):
 
 def test_receive_order_status(client, monkeypatch):
     """Test receiving order status from external system"""
-    import os
     import uuid
+
     monkeypatch.setenv("INBOUND_API_KEY", "test-api-key")
 
     order_id = f"ORDER-{uuid.uuid4().hex[:8].upper()}"
-    
+
     resp = client.post(
         f"/v1/integrations/orders/{order_id}/status",
         json={
             "status": "PAID",
             "ts": "2025-12-05T12:00:00Z",
             "customer_region": "JP",
-            "traceId": "TEST-TRACE-008"
+            "traceId": "TEST-TRACE-008",
         },
-        headers={"X-API-Key": "test-api-key"}
+        headers={"X-API-Key": "test-api-key"},
     )
 
     assert resp.status_code == 202
@@ -298,14 +298,10 @@ def test_receive_order_status_invalid_api_key(client):
     """Test receiving order status with invalid API key"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-123/status",
-        json={
-            "status": "PAID",
-            "ts": "2025-12-05T12:00:00Z"
-        },
-        headers={"X-API-Key": "wrong-key"}
+        json={"status": "PAID", "ts": "2025-12-05T12:00:00Z"},
+        headers={"X-API-Key": "wrong-key"},
     )
 
     assert resp.status_code == 401
     data = resp.get_json()
     assert data["error"]["code"] == "UNAUTHORIZED"
-

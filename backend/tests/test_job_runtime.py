@@ -95,7 +95,9 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
     monkeypatch.setattr(cli, "_heartbeat", _heartbeat)
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr(cli, "record_event", lambda **kwargs: None)
-    monkeypatch.setattr(cli, "post_event", lambda *args, **kwargs: {"status": 200, "latency_ms": 1})
+    monkeypatch.setattr(
+        cli, "post_event", lambda *args, **kwargs: {"status": 200, "latency_ms": 1}
+    )
 
     job = Job(
         type="pn_submit",
@@ -122,7 +124,9 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
 @pytest.mark.integration
 def test_requeue_and_cancel_paths(monkeypatch):
     record_calls = []
-    monkeypatch.setattr(cli, "record_event", lambda **kwargs: record_calls.append(kwargs))
+    monkeypatch.setattr(
+        cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
+    )
 
     job = Job(
         type="pn_submit",
@@ -239,7 +243,9 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
 @pytest.mark.integration
 def test_non_retriable_raised_from_handlers(monkeypatch):
     record_calls = []
-    monkeypatch.setattr(cli, "record_event", lambda **kwargs: record_calls.append(kwargs))
+    monkeypatch.setattr(
+        cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
+    )
     monkeypatch.setattr(cli, "post_event", lambda *a, **k: {"status": 200})
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
 
@@ -256,7 +262,12 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
         status="queued",
         attempts=0,
         next_run_at=datetime.utcnow() - timedelta(seconds=1),
-        payload_json={"traceId": "nr-pn", "product": {}, "logistics": {}, "consignee": {}},
+        payload_json={
+            "traceId": "nr-pn",
+            "product": {},
+            "logistics": {},
+            "consignee": {},
+        },
         trace_id="nr-pn",
     )
     db.session.add_all([job1, job2])
@@ -328,8 +339,14 @@ def test_webhook_retry_respects_max_attempts(monkeypatch):
     # Directly enqueue webhook_retry job with low max_attempts=1
     monkeypatch.setattr("app.jobs.cli._heartbeat", lambda *a, **k: None)
     monkeypatch.setattr("app.jobs.cli.record_event", lambda **kw: True, raising=False)
-    monkeypatch.setattr("app.jobs.cli.post_event", lambda *a, **k: {"status": 503}, raising=False)
-    monkeypatch.setattr("app.jobs.handlers.webhook_retry.post_event", lambda *a, **k: {"status": 503}, raising=False)
+    monkeypatch.setattr(
+        "app.jobs.cli.post_event", lambda *a, **k: {"status": 503}, raising=False
+    )
+    monkeypatch.setattr(
+        "app.jobs.handlers.webhook_retry.post_event",
+        lambda *a, **k: {"status": 503},
+        raising=False,
+    )
 
     retry_job = Job(
         type="webhook_retry",

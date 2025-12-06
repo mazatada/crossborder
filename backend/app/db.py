@@ -2,18 +2,33 @@ import os
 from contextlib import contextmanager
 
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Text, DateTime, Boolean, Float,
-    ForeignKey, JSON, BigInteger, LargeBinary
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Text,
+    DateTime,
+    Boolean,
+    Float,
+    ForeignKey,
+    JSON,
+    BigInteger,
+    LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import JSONB  # Postgres 以外でもimport自体はOK
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 
 # --- Engine & Session ---
-DB_URL = os.getenv("DB_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "sqlite:///app.db"
+DB_URL = (
+    os.getenv("DB_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "sqlite:///app.db"
+)
 engine = create_engine(DB_URL, pool_pre_ping=True, future=True)
 
-SessionLocal = scoped_session(sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True))
+SessionLocal = scoped_session(
+    sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+)
 Base = declarative_base()
+
 
 # --- Flask-SQLAlchemy 互換シム ---
 class _DB:
@@ -46,7 +61,9 @@ class _DB:
         # db.metadata で SQLAlchemy Metadata を返す（互換用）
         return self.Model.metadata
 
+
 db = _DB()
+
 
 # 既存コード用：コンテキストマネージャ
 @contextmanager
@@ -60,6 +77,7 @@ def session_scope():
         raise
     finally:
         session.close()
+
 
 def init_db():
     """テーブル作成（必要なら呼ばれる）"""

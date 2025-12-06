@@ -68,7 +68,9 @@ def test_worker_processes_prior_notice_job(monkeypatch):
         record_calls.append(kwargs)
 
     def _post_event(event_type, payload, trace_id=None):
-        webhook_calls.append({"event_type": event_type, "payload": payload, "trace_id": trace_id})
+        webhook_calls.append(
+            {"event_type": event_type, "payload": payload, "trace_id": trace_id}
+        )
         return {"status": 200, "latency_ms": 5}
 
     monkeypatch.setattr("app.jobs.cli.record_event", _record_event)
