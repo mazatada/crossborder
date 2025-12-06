@@ -78,7 +78,7 @@ def record_event(
                     },
                 )
             else:
-                payload = json.dumps(details, ensure_ascii=False) if details else None
+                details_json_str = json.dumps(details, ensure_ascii=False) if details else None
                 conn.execute(
                     text(
                         """
@@ -91,7 +91,7 @@ def record_event(
                         "event": event,
                         "target_type": target_type,
                         "target_id": target_id,
-                        "details_json": payload,
+                        "details_json": details_json_str,
                     },
                 )
     except SQLAlchemyError:
