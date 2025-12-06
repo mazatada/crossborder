@@ -27,11 +27,14 @@ class RuleEngine:
     述語ベースのDSLを使用して、柔軟なルール定義を可能にします。
     """
 
-    def __init__(self, rules_dir: str = None):
+    def __init__(self, rules_dir: Optional[str] = None):
+        target_dir: Path
         if rules_dir is None:
             # デフォルト: このファイルと同じディレクトリのrulesフォルダ
-            rules_dir = Path(__file__).parent
-        self.rules_dir = Path(rules_dir)
+            target_dir = Path(__file__).parent
+        else:
+            target_dir = Path(rules_dir)
+        self.rules_dir = target_dir
         self.rules: List[Dict] = []
         self.rules_version = "unknown"
         self.predicates: Dict[str, Any] = {
