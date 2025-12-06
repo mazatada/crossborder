@@ -88,8 +88,20 @@ def test_worker_processes_prior_notice_job(monkeypatch):
             "importer": {"name": "Importer Inc."},
             "consignee": {"name": "Consignee LLC"},
         },
-        trace_id="pn-trace-worker",
+        trace_id="test-pn-job",
     )
+
+    import sys
+    cli_module = sys.modules["app.jobs.cli"]
+    
+    # モックハンドラの登録 (成功させる + 期待値を返す)
+    monkeypatch.setitem(
+        cli_module.REGISTRY,
+        "pn_submit",
+        lambda *args, **k: {"ok": True, "receipt_media_id": "dev:pn-receipt"},
+    )
+
+    # 1. ジョブ作成
     db.session.add(job)
     db.session.commit()
 

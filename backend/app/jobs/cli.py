@@ -449,50 +449,52 @@ def worker_once(session):
                         error=err["message"],
                         backoff_sec=e.backoff_sec,
                     )
-                elif job.attempts < MAX_ATTEMPTS:
-                    _schedule_retry(session, job, err)
-                    session.commit()
-                    record_event(
-                        event="JOB_RETRYING",
-                        trace_id=job.trace_id,
-                        target_type="job",
-                        target_id=job.id,
-                        type=job.type,
-                        attempts=job.attempts,
-                        error_class=err["class"],
-                        error_message=err["message"],
-                    )
-                    _log(
-                        level="warning",
-                        event="JOB_RETRYING",
-                        job_id=job.id,
-                        type=job.type,
-                        attempts=job.attempts,
-                        error=err["message"],
-                    )
                 else:
-                    _fail(session, job, err)
-                    session.commit()
-                    record_event(
-                        event="JOB_FAILED",
-                        trace_id=job.trace_id,
-                        target_type="job",
-                        target_id=job.id,
-                        type=job.type,
-                        attempts=job.attempts,
-                        error_class=err["class"],
-                        error_message=err["message"],
-                        retriable=True,
-                    )
-                    _log(
-                        level="error",
-                        event="JOB_FAILED",
-                        job_id=job.id,
-                        type=job.type,
-                        attempts=job.attempts,
-                        error=err["message"],
-                        retriable=True,
-                    )
+                    # Default retry
+                    if job.attempts < MAX_ATTEMPTS:
+                        _schedule_retry(session, job, err)
+                        session.commit()
+                        record_event(
+                            event="JOB_RETRYING",
+                            trace_id=job.trace_id,
+                            target_type="job",
+                            target_id=job.id,
+                            type=job.type,
+                            attempts=job.attempts,
+                            error_class=err["class"],
+                            error_message=err["message"],
+                        )
+                        _log(
+                            level="warning",
+                            event="JOB_RETRYING",
+                            job_id=job.id,
+                            type=job.type,
+                            attempts=job.attempts,
+                            error=err["message"],
+                        )
+                    else:
+                        _fail(session, job, err)
+                        session.commit()
+                        record_event(
+                            event="JOB_FAILED",
+                            trace_id=job.trace_id,
+                            target_type="job",
+                            target_id=job.id,
+                            type=job.type,
+                            attempts=job.attempts,
+                            error_class=err["class"],
+                            error_message=err["message"],
+                            retriable=True,
+                        )
+                        _log(
+                            level="error",
+                            event="JOB_FAILED",
+                            job_id=job.id,
+                            type=job.type,
+                            attempts=job.attempts,
+                            error=err["message"],
+                            retriable=True,
+                        )
             except Exception as e2:
                 session.rollback()
                 _log(

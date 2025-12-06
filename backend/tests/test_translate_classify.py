@@ -20,17 +20,28 @@ def test_translate_returns_terms_with_text(client):
 
 @pytest.mark.unit
 def test_classify_rejects_empty_ingredients(client):
-    response = client.post("/v1/classify/hs", json={"product": {"ingredients": []}})
+    response = client.post("/v1/classify/hs", json={"product": {"name": "Empty", "ingredients": []}})
     assert response.status_code == 422
     payload = response.get_json()
-    assert payload["error"]["code"] == "UNPROCESSABLE"
+    assert payload["violations"][0]["rule"] == "not_empty"
 
 
 @pytest.mark.unit
 def test_classify_returns_candidates(client):
     response = client.post(
         "/v1/classify/hs",
-        json={"product": {"ingredients": ["小麦粉", "砂糖"]}},
+        json={
+            "product": {
+                "name": "Chocolate cookies",
+                "category": "confectionery",
+                "ingredients": [
+                    {"id": "ing_wheat_flour", "pct": 30.0},
+                    {"id": "ing_sugar", "pct": 25.0},
+                ],
+                "process": ["baking"],
+                "origin_country": "JP",
+            }
+        },
     )
     assert response.status_code == 200
     payload = response.get_json()

@@ -104,14 +104,23 @@ def classify_hs() -> Tuple[Response, int]:
 
         # ingredients型チェック
         ingredients = product.get("ingredients")
-        if ingredients is not None and not isinstance(ingredients, list):
-            violations.append(
-                {
-                    "field": "product.ingredients",
-                    "rule": "type_check",
-                    "message": "ingredients must be an array",
-                }
-            )
+        if ingredients is not None:
+            if not isinstance(ingredients, list):
+                violations.append(
+                    {
+                        "field": "product.ingredients",
+                        "rule": "type_check",
+                        "message": "ingredients must be an array",
+                    }
+                )
+            elif len(ingredients) == 0:
+                violations.append(
+                    {
+                        "field": "product.ingredients",
+                        "rule": "not_empty",
+                        "message": "ingredients must not be empty",
+                    }
+                )
 
         # process型チェック
         process = product.get("process")
