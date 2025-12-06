@@ -34,7 +34,7 @@ class RuleEngine:
         self.rules_dir = Path(rules_dir)
         self.rules: List[Dict] = []
         self.rules_version = "unknown"
-        self.predicates = {
+        self.predicates: Dict[str, Any] = {
             "contains_any_ids": self._contains_any_ids,
             "process_any": self._process_any,
             "origin_in": self._origin_in,
@@ -222,6 +222,7 @@ class RuleEngine:
                 return predicate_func()
 
     # ========== 述語実装 ==========
+        return False
 
     def _contains_any_ids(self, field_value: Any, values: List[str]) -> bool:
         """

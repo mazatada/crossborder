@@ -40,7 +40,7 @@ class InMemoryCache(CacheBackend):
     """インメモリキャッシュ (開発・単一インスタンス用)"""
 
     def __init__(self, max_size: int = 1000):
-        self.cache = {}
+        self.cache: Dict[str, Any] = {}
         self.max_size = max_size
         self.hit_count = 0
         self.miss_count = 0

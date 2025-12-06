@@ -68,7 +68,7 @@ class HSClassifier:
         )
 
         # 3. HSコードごとにグループ化
-        hs_groups = {}
+        hs_groups: Dict[str, List[Dict[str, Any]]] = {}
         for match in rule_matches:
             hs_code = match["hs_code"]
             if hs_code not in hs_groups:
@@ -158,7 +158,7 @@ class HSClassifier:
                     ing.get("id") for ing in ingredients[:3] if isinstance(ing, dict)
                 ]
                 if primary_ids:
-                    rationale.append(f"Contains {', '.join(primary_ids)}")
+                    rationale.append(f"Contains {', '.join(str(i) for i in primary_ids)}")
 
         # 加工方法ベース
         processes = product_data.get("process", [])

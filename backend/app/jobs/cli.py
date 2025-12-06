@@ -6,6 +6,7 @@ import json
 import traceback
 from datetime import datetime, timezone, timedelta
 
+import datetime as dt
 from sqlalchemy import text, func
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -283,7 +284,7 @@ def _schedule_retry(session, job: Job, err: dict, backoff_sec: Optional[float] =
     job.status = "retrying"
     job.error = err
     if backoff_sec is not None:
-        job.next_run_at = _now_utc() + datetime.timedelta(seconds=backoff_sec)
+        job.next_run_at = _now_utc() + dt.timedelta(seconds=backoff_sec)
     else:
         job.next_run_at = _now_utc() + _next_backoff(job.attempts + 1)
     job.updated_at = _now_utc()
