@@ -78,7 +78,9 @@ def record_event(
                     },
                 )
             else:
-                details_json_str = json.dumps(details, ensure_ascii=False) if details else None
+                details_json_str = (
+                    json.dumps(details, ensure_ascii=False) if details else None
+                )
                 conn.execute(
                     text(
                         """
