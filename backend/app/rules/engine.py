@@ -221,7 +221,7 @@ class RuleEngine:
             else:
                 return predicate_func()
 
-    # ========== 述語実装 ==========
+        # ========== 述語実装 ==========
         return False
 
     def _contains_any_ids(self, field_value: Any, values: List[str]) -> bool:

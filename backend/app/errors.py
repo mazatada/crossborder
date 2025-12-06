@@ -11,7 +11,9 @@ def error_response(
     code: str,
     fields: Optional[Dict[str, Any]] = None
 ):
-    payload: Dict[str, Any] = {"error": {"class": err_class, "message": message, "code": code}}
+    payload: Dict[str, Any] = {
+        "error": {"class": err_class, "message": message, "code": code}
+    }
     if fields:
         payload["error"]["fields"] = fields
     resp = jsonify(payload)

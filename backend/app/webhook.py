@@ -17,7 +17,6 @@ def _signature(body: bytes) -> str:
     return f"sha256={mac}"
 
 
-
 def post_event(event_type: str, payload: dict, trace_id: Optional[str] = None) -> dict:
     """
     標準ライブラリのみでJSON POST。requests不要。

@@ -24,7 +24,7 @@ def handle(payload: dict, *, job_id: int, trace_id: str):
             event_type = str(event_type) if event_type else "unknown"
         if not isinstance(event_payload, dict):
             event_payload = {}
-        
+
         resp = post_event(event_type, event_payload, trace_id=target_trace)
     except Exception as e:
         resp = {"status": 503, "error": str(e)}
