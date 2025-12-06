@@ -5,6 +5,7 @@ import hashlib
 import json
 import time
 from urllib import request, error
+from typing import Optional
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
@@ -16,8 +17,6 @@ def _signature(body: bytes) -> str:
     return f"sha256={mac}"
 
 
-
-from typing import Optional
 
 def post_event(event_type: str, payload: dict, trace_id: Optional[str] = None) -> dict:
     """

@@ -6,7 +6,7 @@ HS分類結果のキャッシュモジュール
 バックエンドとしてInMemoryとRedisをサポートします。
 """
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Any
 from abc import ABC, abstractmethod
 import json
 import logging
