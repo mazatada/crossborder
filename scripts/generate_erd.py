@@ -274,8 +274,16 @@ def main():
     # ERDをMarkdown形式で生成
     erd_markdown = generate_erd_markdown()
     
+    # 出力先ディレクトリの決定 (Docker/Local両対応)
+    base_dir = os.path.dirname(__file__)
+    # ローカル環境: scriptsの兄弟にbackendがある
+    target_dir = os.path.join(base_dir, '..', 'backend')
+    if not os.path.exists(target_dir):
+        # Docker環境: scriptsの親(/app)がbackendそのもの
+        target_dir = os.path.join(base_dir, '..')
+    
     # ERDファイルに書き出し
-    erd_path = os.path.join(os.path.dirname(__file__), '..', 'backend', 'erd.md')
+    erd_path = os.path.join(target_dir, 'erd.md')
     with open(erd_path, 'w', encoding='utf-8') as f:
         f.write(erd_markdown)
     
@@ -285,7 +293,7 @@ def main():
     ddl = generate_ddl()
     
     # DDLファイルに書き出し
-    ddl_path = os.path.join(os.path.dirname(__file__), '..', 'backend', 'schema.sql')
+    ddl_path = os.path.join(target_dir, 'schema.sql')
     with open(ddl_path, 'w', encoding='utf-8') as f:
         f.write("-- Auto-generated DDL\n")
         f.write("-- Generated at: 2025-12-05\n\n")
