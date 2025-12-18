@@ -88,9 +88,58 @@ def classify_hs() -> Tuple[Response, int]:
                 400,
             )
 
+        # セキュリティ検証: Trace ID (ログ出力前に検証必須)
+        import re
+        if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "invalid_argument",
+                            "message": "Invalid trace_id format",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # セキュリティ検証: リソース制限 (DoS対策 - 早期リターン)
+        MAX_ITEMS = 100
+        ingredients = product.get("ingredients")
+        process = product.get("process")
+        
+        if ingredients and isinstance(ingredients, list) and len(ingredients) > MAX_ITEMS:
+            return (
+                 jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many ingredients (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+        
+        if process and isinstance(process, list) and len(process) > MAX_ITEMS:
+             return (
+                 jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many process steps (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
         # バリデーション
         violations = []
-
+        
         # 国コード検証 (ISO 3166-1 alpha-2)
         origin_country = product.get("origin_country")
         if origin_country and len(origin_country) != 2:
@@ -102,8 +151,7 @@ def classify_hs() -> Tuple[Response, int]:
                 }
             )
 
-        # ingredients型チェック
-        ingredients = product.get("ingredients")
+        # ingredients型チェック (リストであることは確認済みだが詳細チェック)
         if ingredients is not None:
             if not isinstance(ingredients, list):
                 violations.append(
@@ -123,7 +171,6 @@ def classify_hs() -> Tuple[Response, int]:
                 )
 
         # process型チェック
-        process = product.get("process")
         if process is not None and not isinstance(process, list):
             violations.append(
                 {
@@ -138,6 +185,54 @@ def classify_hs() -> Tuple[Response, int]:
                 f"Validation failed: trace_id={trace_id}, violations={violations}"
             )
             return jsonify({"violations": violations}), 422
+
+        # セキュリティ検証: Trace ID
+        import re
+        if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
+            # Trace IDに不正文字が含まれる場合はログに出さずに拒否 (Log Injection対策)
+            # またはサーバー側で再生成して上書きする安全策もあるが、ここでは400を返す
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "invalid_argument",
+                            "message": "Invalid trace_id format",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # セキュリティ検証: リソース制限 (DoS対策)
+        MAX_ITEMS = 100
+        if ingredients and len(ingredients) > MAX_ITEMS:
+            return (
+                 jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many ingredients (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+        
+        if process and len(process) > MAX_ITEMS:
+             return (
+                 jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many process steps (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
 
         # 監査ログ: リクエスト受信
         log_event(

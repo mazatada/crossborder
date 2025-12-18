@@ -84,4 +84,4 @@ def create_job():
     )
     db.session.add(job)
     db.session.commit()
-    return jsonify({"id": job.id, "status": "queued"}), 201
+    return jsonify({"id": job.id, "job_id": job.id, "status": "queued"}), 201
