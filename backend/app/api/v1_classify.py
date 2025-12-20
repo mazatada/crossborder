@@ -31,15 +31,15 @@ def classify_hs() -> Tuple[Response, int]:
     start_time = time.time()
 
     # トレースID取得/生成
+    data = request.get_json(silent=True) or {}
     trace_id = (
         request.headers.get("X-Trace-ID")
-        or request.json.get("traceId")
+        or data.get("traceId")
         or f"hs-{uuid.uuid4().hex[:16]}"
     )
 
     try:
-        # リクエストボディ取得
-        data = request.json
+        # リクエストボディ取得 (dataは既に取得済み)
         if not data:
             return (
                 jsonify(
@@ -90,6 +90,7 @@ def classify_hs() -> Tuple[Response, int]:
 
         # セキュリティ検証: Trace ID (ログ出力前に検証必須)
         import re
+
         if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
             return (
                 jsonify(
@@ -108,10 +109,14 @@ def classify_hs() -> Tuple[Response, int]:
         MAX_ITEMS = 100
         ingredients = product.get("ingredients")
         process = product.get("process")
-        
-        if ingredients and isinstance(ingredients, list) and len(ingredients) > MAX_ITEMS:
+
+        if (
+            ingredients
+            and isinstance(ingredients, list)
+            and len(ingredients) > MAX_ITEMS
+        ):
             return (
-                 jsonify(
+                jsonify(
                     {
                         "error": {
                             "class": "resource_exhausted",
@@ -122,10 +127,10 @@ def classify_hs() -> Tuple[Response, int]:
                 ),
                 400,
             )
-        
+
         if process and isinstance(process, list) and len(process) > MAX_ITEMS:
-             return (
-                 jsonify(
+            return (
+                jsonify(
                     {
                         "error": {
                             "class": "resource_exhausted",
@@ -139,7 +144,7 @@ def classify_hs() -> Tuple[Response, int]:
 
         # バリデーション
         violations = []
-        
+
         # 国コード検証 (ISO 3166-1 alpha-2)
         origin_country = product.get("origin_country")
         if origin_country and len(origin_country) != 2:
@@ -188,6 +193,7 @@ def classify_hs() -> Tuple[Response, int]:
 
         # セキュリティ検証: Trace ID
         import re
+
         if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
             # Trace IDに不正文字が含まれる場合はログに出さずに拒否 (Log Injection対策)
             # またはサーバー側で再生成して上書きする安全策もあるが、ここでは400を返す
@@ -208,7 +214,7 @@ def classify_hs() -> Tuple[Response, int]:
         MAX_ITEMS = 100
         if ingredients and len(ingredients) > MAX_ITEMS:
             return (
-                 jsonify(
+                jsonify(
                     {
                         "error": {
                             "class": "resource_exhausted",
@@ -219,10 +225,10 @@ def classify_hs() -> Tuple[Response, int]:
                 ),
                 400,
             )
-        
+
         if process and len(process) > MAX_ITEMS:
-             return (
-                 jsonify(
+            return (
+                jsonify(
                     {
                         "error": {
                             "class": "resource_exhausted",
