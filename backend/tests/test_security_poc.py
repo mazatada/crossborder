@@ -1,11 +1,10 @@
 
 import pytest
 import time
-import json
 from app.db import db
 
 @pytest.mark.security
-def test_huge_payload_dos(client):
+def test_huge_payload_dos(client, api_key_header):
     """
     Test resilience against huge payloads (DoS attempt).
     Sends a product with 10,000 ingredients.
@@ -23,6 +22,7 @@ def test_huge_payload_dos(client):
                 "traceId": trace_id,
             }
         },
+        headers=api_key_header,
     )
     duration = time.time() - start_time
     print(f"\n[Security] Huge payload (10k items) processed in {duration:.2f}s")
@@ -33,7 +33,7 @@ def test_huge_payload_dos(client):
     assert err["error"]["class"] == "resource_exhausted"
 
 @pytest.mark.security
-def test_trace_id_injection(client):
+def test_trace_id_injection(client, api_key_header):
     """
     Test handling of malicious trace_id (Stored XSS / Log Injection).
     """
@@ -48,6 +48,7 @@ def test_trace_id_injection(client):
             },
             "traceId": malicious_trace_id, # Inject here (Root level)
         },
+        headers=api_key_header,
     )
     
     # Expectation: Should be rejected due to strict regex validation for trace_id

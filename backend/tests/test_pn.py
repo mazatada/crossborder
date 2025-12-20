@@ -5,16 +5,10 @@ from app.db import db
 from app.models import Job
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ensure_tables():
-    db.metadata.create_all(bind=db.engine)
-    yield
-    db.session.execute(delete(Job))
-    db.session.commit()
 
 
 @pytest.mark.integration
-def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
+def test_prior_notice_queues_job_and_records_event(client, monkeypatch, api_key_header):
     calls = []
 
     def _record_event(**kwargs):
@@ -29,7 +23,7 @@ def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
         "importer": {"name": "Importer Inc."},
         "consignee": {"name": "Consignee LLC"},
     }
-    response = client.post("/v1/fda/prior-notice", json=payload)
+    response = client.post("/v1/fda/prior-notice", json=payload, headers=api_key_header)
     assert response.status_code == 202
     job_id = response.get_json()["job_id"]
 
@@ -48,8 +42,8 @@ def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
 
 
 @pytest.mark.integration
-def test_prior_notice_missing_required_fields(client):
-    response = client.post("/v1/fda/prior-notice", json={})
+def test_prior_notice_missing_required_fields(client, api_key_header):
+    response = client.post("/v1/fda/prior-notice", json={}, headers=api_key_header)
     assert response.status_code == 400
     body = response.get_json()
     assert body["error"]["code"] == "INVALID_ARGUMENT"

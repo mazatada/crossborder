@@ -5,14 +5,14 @@ Translation → Classification → Documents → PN Submission
 
 import pytest
 from app.db import db
-from app.models import Job, PNSubmission, DocumentPackage
+from app.models import Job
 import time
 import unittest
 import unittest.mock
 
 
 @pytest.mark.e2e
-def test_complete_crossborder_flow(client):
+def test_complete_crossborder_flow(client, api_key_header):
     """
     Test the complete cross-border flow from translation to PN submission.
 
@@ -54,6 +54,7 @@ def test_complete_crossborder_flow(client):
                     "traceId": trace_id
                 }
             },
+            headers=api_key_header,
         )
 
     if classify_resp.status_code != 200:
@@ -74,6 +75,7 @@ def test_complete_crossborder_flow(client):
             "invoice_data": {"quantity": 10, "unit": "pieces", "value": 5000},
             "traceId": trace_id,
         },
+        headers=api_key_header,
     )
 
     if docs_resp.status_code != 202:
@@ -100,6 +102,7 @@ def test_complete_crossborder_flow(client):
             "consignee": {"name": "Test Consignee", "address": "456 Test Ave, Osaka"},
             "traceId": trace_id,
         },
+        headers=api_key_header,
     )
 
     if pn_resp.status_code != 202:
@@ -122,7 +125,7 @@ def test_complete_crossborder_flow(client):
 
 
 @pytest.mark.e2e
-def test_async_job_flow(client):
+def test_async_job_flow(client, api_key_header):
     """
     Test asynchronous job processing flow.
     """
@@ -141,6 +144,7 @@ def test_async_job_flow(client):
             },
             "trace_id": trace_id,  # Match API expectation (snake_case)
         },
+        headers=api_key_header,
     )
 
     assert job_resp.status_code == 201
@@ -154,7 +158,7 @@ def test_async_job_flow(client):
 
     max_attempts = 10
     for attempt in range(max_attempts):
-        status_resp = client.get(f"/v1/jobs/{job_id}")
+        status_resp = client.get(f"/v1/jobs/{job_id}", headers=api_key_header)
         if status_resp.status_code != 200:
              pytest.fail(f"Get Job Error: {status_resp.status_code}")
         
@@ -180,7 +184,7 @@ def test_async_job_flow(client):
 
 
 @pytest.mark.e2e
-def test_webhook_integration_flow(client):
+def test_webhook_integration_flow(client, api_key_header):
     """
     Test webhook integration flow.
 
@@ -199,6 +203,7 @@ def test_webhook_integration_flow(client):
             "events": ["HS_CLASSIFIED", "DOCS_PACKAGED"],
             "traceId": trace_id,
         },
+        headers=api_key_header,
     )
 
     assert webhook_resp.status_code == 201
@@ -208,7 +213,7 @@ def test_webhook_integration_flow(client):
 
     # Test webhook delivery
     test_resp = client.post(
-        f"/v1/integrations/webhooks/{webhook_id}/test", json={"traceId": trace_id}
+        f"/v1/integrations/webhooks/{webhook_id}/test", json={"traceId": trace_id}, headers=api_key_header
     )
 
     # Note: This will fail in real environment without mock
@@ -217,7 +222,7 @@ def test_webhook_integration_flow(client):
 
 
 @pytest.mark.e2e
-def test_error_handling_flow(client):
+def test_error_handling_flow(client, api_key_header):
     """
     Test error handling in the flow.
 
@@ -232,6 +237,7 @@ def test_error_handling_flow(client):
     classify_resp = client.post(
         "/v1/classify/hs",
         json={"product": {}, "traceId": trace_id},  # Empty body or missing fields
+        headers=api_key_header,
     )
     
     # 400 Bad Request or 422 Unprocessable Entity
@@ -241,6 +247,7 @@ def test_error_handling_flow(client):
     pn_resp = client.post(
         "/v1/fda/prior-notice",
         json={"product": {}, "traceId": trace_id},  # Missing required fields
+        headers=api_key_header,
     )
 
     assert pn_resp.status_code == 400

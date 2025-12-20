@@ -57,7 +57,7 @@ class TestClassifyHSAPI:
 
         # メタデータ検証
         assert data["metadata"]["classification_method"] == "rule_based"
-        assert data["metadata"]["rules_version"] == "1.0.0"
+        assert data["metadata"]["rules_version"] == "1.1.0"
         assert "processing_time_ms" in data["metadata"]
 
     def test_classify_saves_to_database(self, client, api_key_header, db_session):
@@ -89,7 +89,7 @@ class TestClassifyHSAPI:
         assert classification.product_name == "Test product"
         assert classification.final_hs_code == "1905.90"
         assert classification.classification_method == "rule_based"
-        assert classification.rules_version == "1.0.0"
+        assert classification.rules_version == "1.1.0"
 
     def test_classify_creates_audit_log(self, client, api_key_header, db_session):
         """監査ログの確認"""

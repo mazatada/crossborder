@@ -9,9 +9,13 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
 **Trigger:** Push to `main`/`master`, Feature branches (`feat/**`), Pull Requests.
 **Scope:**
 - **Build:** Docker Compose build for backend.
-- **Lint:** `ruff` (Fast linting), `black` (Formatting).
+- **Lint (静的解析):**
+    - `ruff check app tests` (ロジック・規約チェック、自動修正対応)
+    - `black --check app` (コードフォーマットチェック)
+- **Type Check (型定義チェック):**
+    - `mypy app` (型安全性の確保)
 - **Test:** `pytest` (Unit & Integration tests).
-- **E2E:** `playwright` (API Smoke tests via Docker).
+    - **Target Coverage:** 80% (Fail if under 80%).
 
 ### 2.2. Knowledge Guard (`.github/workflows/knowledge-guard.yml`)
 **Trigger:** Schedule (Nightly at 01:00 UTC), Manual Dispatch.
@@ -40,6 +44,16 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
     - *Action:* Upload `test-results/` as artifacts on failure.
 - **Watchdog Reports:** `knowledge-guard` generates reports inside the container but doesn't persist them.
     - *Action:* Upload `docs/regulations/reports` as a workflow artifact.
+
+### 3.4. Release Engineering & Safety (Negative Check Findings)
+- **Deployment Strategy:** No clear strategy for zero-downtime deployment or rollback.
+    - *Action:* Define Blue/Green or Rolling update strategy. Define automated rollback criteria.
+- **Database Migrations:** Risk of breaking schema changes during CD.
+    - *Action:* Separate migration jobs from application deployment. Use tools like `alembic` with downgrade verification.
+- **Dependency Management:** No automated vulnerability checking for dependencies.
+    - *Action:* Configure Dependabot or Renovate for weekly updates.
+- **Secret Management:** Secrets are used but no leak detection mechanism exists.
+    - *Action:* Add `git-secrets` or `trufflehog` check in the pipeline.
 
 ## 4. Implementation Roadmap
 

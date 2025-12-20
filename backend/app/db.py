@@ -19,10 +19,10 @@ from sqlalchemy.dialects.postgresql import JSONB  # Postgres 以外でもimport�
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 
 # --- Engine & Session ---
-DB_URL = (
-    os.getenv("DB_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "sqlite:///app.db"
-)
-engine = create_engine(DB_URL, pool_pre_ping=True, future=True)
+def get_db_url():
+    return os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DB_URL") or "sqlite:///app.db"
+
+engine = create_engine(get_db_url(), pool_pre_ping=True, future=True)
 
 SessionLocal = scoped_session(
     sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
