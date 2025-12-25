@@ -56,8 +56,11 @@ jobs:
             echo "Warning: OpenAPI spec not found"
           fi
 
-      - name: Run pytest (unit/integration)
-        run: docker compose run --rm pytest
+      - name: Run pytest (unit/integration - SQLite)
+        run: docker compose run --rm pytest -m "not postgres"
+
+      - name: Run pytest (PostgreSQL-dependent tests)
+        run: docker compose run --rm pytest -m "postgres"
 
       - name: Run Playwright API smoke tests (dockerized)
         run: docker compose run --rm playwright

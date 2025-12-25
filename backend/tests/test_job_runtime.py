@@ -6,15 +6,8 @@ from app.models import Job
 from app.jobs import cli
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ensure_tables():
-    db.metadata.create_all(bind=db.engine)
-    yield
-    db.session.query(Job).delete()
-    db.session.commit()
-
-
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
     monkeypatch.setattr(cli, "VISIBILITY_TIMEOUT_SEC", 0)
 
@@ -42,6 +35,7 @@ def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_retries_on_handler_error(monkeypatch):
     record_calls = []
 
@@ -79,6 +73,7 @@ def test_worker_retries_on_handler_error(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_heartbeat_called_before_handler(monkeypatch):
     calls = []
 
@@ -122,6 +117,7 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_requeue_and_cancel_paths(monkeypatch):
     record_calls = []
     monkeypatch.setattr(
@@ -155,6 +151,7 @@ def test_requeue_and_cancel_paths(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_non_retriable_error_marks_failed(monkeypatch):
     record_calls = []
 
@@ -193,6 +190,7 @@ def test_non_retriable_error_marks_failed(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
     record_calls = []
 
@@ -241,6 +239,7 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_non_retriable_raised_from_handlers(monkeypatch):
     record_calls = []
     monkeypatch.setattr(
@@ -299,6 +298,7 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_failure_enqueues_retry_job(monkeypatch):
     record_calls = []
 
@@ -345,6 +345,7 @@ def test_webhook_failure_enqueues_retry_job(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_retry_respects_max_attempts(monkeypatch):
     # Directly enqueue webhook_retry job with low max_attempts=1
     monkeypatch.setattr("app.jobs.cli._heartbeat", lambda *a, **k: None)

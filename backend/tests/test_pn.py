@@ -50,6 +50,7 @@ def test_prior_notice_missing_required_fields(client, api_key_header):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_processes_prior_notice_job(monkeypatch):
     from datetime import datetime, timedelta
     from app.models import Job

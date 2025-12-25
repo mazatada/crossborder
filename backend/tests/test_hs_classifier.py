@@ -136,7 +136,7 @@ class TestRuleEngine:
         """ルールバージョンの取得"""
         engine = RuleEngine()
         version = engine.get_rules_version()
-        assert version == "1.0.0"
+        assert version == "1.1.0"
 
     def test_rules_count(self):
         """ルール数の取得"""
@@ -249,7 +249,7 @@ class TestHSClassifier:
         """ルールバージョンの取得"""
         classifier = HSClassifier()
         version = classifier.get_rules_version()
-        assert version == "1.0.0"
+        assert version == "1.1.0"
 
 
 class TestRationaleGeneration:
