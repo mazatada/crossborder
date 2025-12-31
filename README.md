@@ -29,7 +29,7 @@ CI 上でも同じ `docker compose run` をステージに追加すれば、Pyth
 
 ## Playwright で API スモークを走らせる
 
-Playwright テストは `frontend` 内にあり、API リクエスト経由で `/v1/health` や `/v1/translate/ingredients`、`/v1/classify/hs` を叩きます。CI で Playwright を動かすには、まずバックエンドを起動してから Node の依存をインストールします。
+Playwright テストは `frontend` 内にあり、API リクエスト経由で `/v1/health` や `/v1/translate/ingredients`、`/v1/classify/hs` を叩きます。CI で Playwright を動かすには、まずバックエンドを起動してから Node の依存をインストールします（`frontend/node_modules` は Compose の named volume にキャッシュされます）。
 
 ```
 docker compose up -d db backend

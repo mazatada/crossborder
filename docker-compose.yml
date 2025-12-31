@@ -107,12 +107,16 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - ./backend:/app/backend
+      - frontend-node-modules:/app/frontend/node_modules
       - playwright-cache:/ms-playwright
     entrypoint: [ "/bin/bash", "-lc" ]
     command:
       - |
-        npm ci --prefer-offline --no-progress
+        if [ ! -d node_modules/@playwright/test ]; then
+          npm ci --prefer-offline --no-progress
+        fi
         npx playwright test --project=api
 
 volumes:
+  frontend-node-modules:
   playwright-cache:
