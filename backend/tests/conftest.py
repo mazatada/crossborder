@@ -12,21 +12,14 @@ if str(BACKEND_ROOT) not in sys.path:
 @pytest.fixture(scope="session")
 def _app():
     """Session-wide test `Flask` application factory."""
-    # 環境変数をインメモリ SQLite に固定。これで app.db が初期化時にこれを参照する。
-    os.environ["SQLALCHEMY_DATABASE_URI"] = "sqlite:///:memory:"
     os.environ["API_KEYS"] = "test-api-key"
     os.environ["TESTING"] = "true"
 
     from app.factory import create_app
-    from app.db import engine as _engine
-    
-    # 既存の engine が Postgres を向いている可能性があれば dispose (念の為)
-    _engine.dispose()
-    
+
     app = create_app()
     app.config.update({
         "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
         "SQLALCHEMY_TRACK_MODIFICATIONS": False,
         "SECRET_KEY": "test-secret-key"
     })
@@ -35,20 +28,47 @@ def _app():
 @pytest.fixture(scope="function")
 def app(_app):
     """Per-test application with clean DB."""
-    from app.db import db
-    
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import scoped_session, sessionmaker
+    import app.db as app_db
+
+    sqlite_engine = create_engine("sqlite:///:memory:", future=True)
+    sqlite_session = scoped_session(
+        sessionmaker(bind=sqlite_engine, autoflush=False, autocommit=False, future=True)
+    )
+
+    # Swap DB engine/session to SQLite for isolated tests, then restore after.
+    original_engine = app_db.engine
+    original_session = app_db.SessionLocal
+    original_db_engine = app_db.db.engine
+    original_db_session = app_db.db.session
+
+    app_db.engine = sqlite_engine
+    app_db.SessionLocal = sqlite_session
+    app_db.db.engine = sqlite_engine
+    app_db.db.session = sqlite_session
+
     with _app.app_context():
+        # SQLite needs Integer PK for autoincrement; adjust Job.id just for test schema.
+        from app.models import Job
+        from sqlalchemy import Integer
+        Job.__table__.columns["id"].type = Integer()
         # 清掃
-        db.session.remove()
-        db.metadata.drop_all(bind=db.engine)
+        sqlite_session.remove()
+        app_db.Base.metadata.drop_all(bind=sqlite_engine)
         # 作成
-        db.metadata.create_all(bind=db.engine)
+        app_db.Base.metadata.create_all(bind=sqlite_engine)
         # ジョブ関連のテーブルが確実に作成されているか確認 (debug用)
         # print(f"Tables: {db.metadata.tables.keys()}")
         yield _app
         # 終了処理
-        db.session.remove()
-        db.metadata.drop_all(bind=db.engine)
+        sqlite_session.remove()
+        app_db.Base.metadata.drop_all(bind=sqlite_engine)
+
+    app_db.engine = original_engine
+    app_db.SessionLocal = original_session
+    app_db.db.engine = original_db_engine
+    app_db.db.session = original_db_session
 
 @pytest.fixture(scope="function")
 def client(app):
