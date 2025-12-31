@@ -1,4 +1,3 @@
-import pytest
 
 def test_classify_hs_no_json(client, api_key_header):
     """

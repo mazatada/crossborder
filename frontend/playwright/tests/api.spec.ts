@@ -20,16 +20,22 @@ test.describe("backend API smoke", () => {
 
 	test("classify requires ingredients", async ({ request }) => {
 		const response = await request.post("/v1/classify/hs", {
-			data: { product: { ingredients: [] } },
+			data: { product: { name: "Sample Snack", ingredients: [] } },
 		});
 		expect(response.status()).toBe(422);
 		const body = await response.json();
-		expect(body.error.code).toBe("UNPROCESSABLE");
+		expect(body.violations?.[0]?.field).toBe("product.ingredients");
 	});
 
 	test("classify returns candidates", async ({ request }) => {
 		const response = await request.post("/v1/classify/hs", {
-			data: { product: { ingredients: ["小麦粉"] } },
+			data: {
+				product: {
+					name: "Sample Snack",
+					ingredients: [{ id: "ing_wheat_flour", pct: 60 }],
+					process: ["baking"],
+				},
+			},
 		});
 		expect(response.status()).toBe(200);
 		const body = await response.json();
@@ -45,7 +51,13 @@ test.describe("backend API smoke", () => {
 		expect(translateResp.status()).toBe(200);
 
 		const classifyResp = await request.post("/v1/classify/hs", {
-			data: { product: { ingredients: ["砂糖"] } },
+			data: {
+				product: {
+					name: "Sample Snack",
+					ingredients: [{ id: "ing_wheat_flour", pct: 60 }],
+					process: ["baking"],
+				},
+			},
 		});
 		expect(classifyResp.status()).toBe(200);
 		const classifyBody = await classifyResp.json();

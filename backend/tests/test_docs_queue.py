@@ -1,5 +1,4 @@
 import pytest
-from sqlalchemy import delete
 
 from app.db import db
 from app.models import Job
