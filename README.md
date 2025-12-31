@@ -18,11 +18,11 @@ docker compose run --rm pytest
 
 ## Lint を Docker 内で実行する
 
-`ruff` / `black` は backend 依存に含まれているため、Docker 上で lint を走らせるには以下のコマンドを使います：
+`ruff` / `black` は backend 依存に含まれているため、Docker 上で lint を走らせるには以下のコマンドを使います（`E501` は設定で無視）：
 
 ```
-docker compose run --rm --entrypoint ruff backend check backend backend/tests
-docker compose run --rm --entrypoint black backend --check backend
+docker compose run --rm --entrypoint ruff backend check app tests
+docker compose run --rm --entrypoint black backend --check app tests
 ```
 
 CI 上でも同じ `docker compose run` をステージに追加すれば、Python のスタイル・静的検知が本番環境と同じ依存で動きます。

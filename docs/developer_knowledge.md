@@ -18,9 +18,11 @@ CI/CDやGit操作で繰り返しやすいミスを防ぐための指針として
    - `mypy.ini` は必須。特にサードパーティライブラリ（Flask-SQLAlchemy等）のエラーを制御するために必要。
    - `types-requests` などのスタブパッケージは漏らさず `requirements.txt` に入れる。
 
-3. **E501 (Line too long) 対策**:
-   - Blackを使用している場合、Ruff/Flake8の `E501` エラーは **無視する** のが推奨設定。
-   - CI (`.github/workflows/ci.yml`) では `ruff ... --ignore E501` を付与する。
+3. **E501 (Line too long) 方針**:
+   - Blackを唯一の整形ルールとし、Ruffの `E501` は **無視する**。
+   - ただし可読性が著しく落ちる行はレビューで指摘して手動で折り返す。
+   - 重点レビュー対象: `app/api/*`, `app/jobs/*`, `app/classify/*`
+   - 個別例外は `# noqa: E501` で明示。
 
 ### Flask-SQLAlchemy と Mypy
 - **問題**: `db.Column(...)` の戻り値は `Column` 型だが、Pythonのフィールド型宣言（`id: int`）と型が合わないため、代入エラー(`assignment`)が発生する。また、`db.Model` が動的生成されるため、継承元の解決に失敗する場合がある。

@@ -5,6 +5,10 @@ warn_unused_configs = true
 ignore_missing_imports = true
 check_untyped_defs = true
 
+[tool.ruff]
+line-length = 88
+ignore = ["E501"]
+
 [[tool.mypy.overrides]]
 module = "tests.*"
 ignore_errors = true
