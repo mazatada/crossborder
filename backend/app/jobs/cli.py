@@ -176,8 +176,9 @@ def _after_success(job, result):
     }
     try:
         resp = post_event(event_type, payload, trace_id=job.trace_id)
-        if resp.get("status") and resp["status"] >= 500:
-            raise RuntimeError(f"webhook status {resp.get('status')}")
+        status = resp.get("status")
+        if status is None or status >= 500:
+            raise RuntimeError(f"webhook status {status}")
         record_event(
             event="WEBHOOK_POST",
             trace_id=job.trace_id or "",
@@ -346,7 +347,7 @@ def dispatch(job: Job):
         if job.type == "echo":
             handler = _handle_echo
         else:
-            raise RuntimeError(f"No handler registered for type={job.type}")
+            raise NonRetriableError(f"No handler registered for type={job.type}")
     payload: Dict[str, Any] = job.payload_json or {}
     # attempts は job.attempts を真実源とし、handler へ引き渡す
     payload["_job_attempts"] = job.attempts

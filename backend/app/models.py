@@ -127,7 +127,7 @@ class HSClassification(Base):
     review_required: bool = db.Column(db.Boolean, default=False, nullable=False, index=True)  # type: ignore
 
     duty_rate: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
-    risk_flags: Optional[List[str]] = db.Column(db.JSON, nullable=True)  # type: ignore
+    risk_flags: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
     quota_applicability: Optional[str] = db.Column(db.String(64), nullable=True)  # type: ignore
     explanations: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
 

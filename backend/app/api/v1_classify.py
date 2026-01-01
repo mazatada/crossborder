@@ -72,6 +72,21 @@ def classify_hs() -> Tuple[Response, int]:
                 400,
             )
 
+        if not isinstance(product, dict):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "invalid_argument",
+                            "message": "product must be an object",
+                            "field": "product",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
         # 必須フィールドチェック
         if not product.get("name"):
             return (
