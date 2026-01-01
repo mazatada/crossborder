@@ -131,6 +131,20 @@ class TestClassifyHSAPI:
         # 空のJSONの場合は"product"フィールドが欠落
         assert data["error"]["field"] in ["product", "body"]
 
+    def test_classify_product_not_object(self, client, api_key_header):
+        """productがobject以外 (400エラー)"""
+        response = client.post(
+            "/v1/classify/hs",
+            json={"product": "invalid"},
+            headers=api_key_header,
+        )
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert "error" in data
+        assert data["error"]["class"] == "invalid_argument"
+        assert data["error"]["field"] == "product"
+
     def test_classify_missing_product_name(self, client, api_key_header):
         """product.name欠落 (400エラー)"""
         response = client.post(

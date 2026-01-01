@@ -177,7 +177,7 @@ def _after_success(job, result):
     try:
         resp = post_event(event_type, payload, trace_id=job.trace_id)
         status = resp.get("status")
-        if status is None or status >= 500:
+        if not isinstance(status, int) or status >= 500:
             raise RuntimeError(f"webhook status {status}")
         record_event(
             event="WEBHOOK_POST",

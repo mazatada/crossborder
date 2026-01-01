@@ -206,25 +206,6 @@ def classify_hs() -> Tuple[Response, int]:
             )
             return jsonify({"violations": violations}), 422
 
-        # セキュリティ検証: Trace ID
-        import re
-
-        if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
-            # Trace IDに不正文字が含まれる場合はログに出さずに拒否 (Log Injection対策)
-            # またはサーバー側で再生成して上書きする安全策もあるが、ここでは400を返す
-            return (
-                jsonify(
-                    {
-                        "error": {
-                            "class": "invalid_argument",
-                            "message": "Invalid trace_id format",
-                            "severity": "block",
-                        }
-                    }
-                ),
-                400,
-            )
-
         # セキュリティ検証: リソース制限 (DoS対策)
         MAX_ITEMS = 100
         if ingredients and len(ingredients) > MAX_ITEMS:
