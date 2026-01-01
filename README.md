@@ -18,18 +18,18 @@ docker compose run --rm pytest
 
 ## Lint を Docker 内で実行する
 
-`ruff` / `black` は backend 依存に含まれているため、Docker 上で lint を走らせるには以下のコマンドを使います：
+`ruff` / `black` は backend 依存に含まれているため、Docker 上で lint を走らせるには以下のコマンドを使います（`E501` は設定で無視）：
 
 ```
-docker compose run --rm --entrypoint ruff backend check backend backend/tests
-docker compose run --rm --entrypoint black backend --check backend
+docker compose run --rm --entrypoint ruff backend check app tests
+docker compose run --rm --entrypoint black backend --check app tests
 ```
 
 CI 上でも同じ `docker compose run` をステージに追加すれば、Python のスタイル・静的検知が本番環境と同じ依存で動きます。
 
 ## Playwright で API スモークを走らせる
 
-Playwright テストは `frontend` 内にあり、API リクエスト経由で `/v1/health` や `/v1/translate/ingredients`、`/v1/classify/hs` を叩きます。CI で Playwright を動かすには、まずバックエンドを起動してから Node の依存をインストールします。
+Playwright テストは `frontend` 内にあり、API リクエスト経由で `/v1/health` や `/v1/translate/ingredients`、`/v1/classify/hs` を叩きます。CI で Playwright を動かすには、まずバックエンドを起動してから Node の依存をインストールします（`frontend/node_modules` は Compose の named volume にキャッシュされます）。
 
 ```
 docker compose up -d db backend

@@ -1,16 +1,9 @@
 import pytest
-from sqlalchemy import delete
 
 from app.db import db
 from app.models import Job
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ensure_tables():
-    db.metadata.create_all(bind=db.engine)
-    yield
-    db.session.execute(delete(Job))
-    db.session.commit()
 
 
 @pytest.mark.integration

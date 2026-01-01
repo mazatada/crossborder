@@ -4,9 +4,11 @@ import os
 
 bp = Blueprint("v1_misc", __name__, url_prefix="/v1")
 
+
 @bp.get("/health")
 def health():
     return jsonify(status="ok", ts=datetime.utcnow().isoformat() + "Z")
+
 
 @bp.get("/version")
 def version():

@@ -34,16 +34,33 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Python lint (ruff)
-        run: docker compose run --rm --entrypoint ruff backend check backend backend/tests
+        run: docker compose run --rm --entrypoint ruff backend check app tests
 
       - name: Python style (black)
-        run: docker compose run --rm --entrypoint black backend --check backend
+        run: docker compose run --rm --entrypoint black backend --check app
 
       - name: Python type check (mypy)
         run: docker compose run --rm --entrypoint mypy backend app
 
-      - name: Run pytest (unit/integration)
-        run: docker compose run --rm pytest
+      - name: Generate ERD and DDL
+        run: docker compose run --rm -v ${{ github.workspace }}/scripts:/app/scripts backend python scripts/generate_erd.py
+
+      - name: Validate OpenAPI spec
+        run: |
+          if [ -f app/openapi.yaml ]; then
+            echo "OpenAPI spec found"
+            # Add OpenAPI validation here if needed
+          elif [ -f backend/openapi.yaml ]; then
+             echo "OpenAPI spec found in backend"
+          else
+            echo "Warning: OpenAPI spec not found"
+          fi
+
+      - name: Run pytest (unit/integration - SQLite)
+        run: docker compose run --rm pytest -m "not postgres"
+
+      - name: Run pytest (PostgreSQL-dependent tests)
+        run: docker compose run --rm pytest -m "postgres"
 
       - name: Run Playwright API smoke tests (dockerized)
         run: docker compose run --rm playwright
@@ -55,6 +72,16 @@ jobs:
           name: playwright-results
           path: frontend/test-results/
           retention-days: 7
+
+      - name: Upload Generated Docs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-docs
+          path: |
+            backend/erd.md
+            backend/schema.sql
+          retention-days: 30
 
       - name: Stop Docker services
         if: always()

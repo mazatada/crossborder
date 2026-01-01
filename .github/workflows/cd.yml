@@ -1,0 +1,80 @@
+name: CD - Deploy to Staging
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+      
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
+            ${{ secrets.REGISTRY_URL }}/crossborder-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Run database migrations
+        run: |
+          # SSH into deployment server and run migrations
+          # This is a placeholder - adjust for your deployment method
+          echo "Running migrations..."
+          # docker compose exec backend alembic upgrade head
+      
+      - name: Deploy to ${{ github.event.inputs.environment || 'staging' }}
+        run: |
+          # Deploy using your preferred method (Docker Compose, Kubernetes, etc.)
+          echo "Deploying to ${{ github.event.inputs.environment || 'staging' }}..."
+          # Example: docker compose pull && docker compose up -d
+      
+      - name: Health check
+        run: |
+          # Wait for service to be healthy
+          echo "Checking service health..."
+          # curl -f http://your-service-url/health || exit 1
+      
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "Deployment successful!"
+          # Add notification to Slack, Discord, etc.
+      
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Deployment failed! Rolling back..."
+          # docker compose down
+          # docker compose up -d --force-recreate

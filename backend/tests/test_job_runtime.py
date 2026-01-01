@@ -6,15 +6,8 @@ from app.models import Job
 from app.jobs import cli
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ensure_tables():
-    db.metadata.create_all(bind=db.engine)
-    yield
-    db.session.query(Job).delete()
-    db.session.commit()
-
-
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
     monkeypatch.setattr(cli, "VISIBILITY_TIMEOUT_SEC", 0)
 
@@ -42,6 +35,7 @@ def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_retries_on_handler_error(monkeypatch):
     record_calls = []
 
@@ -79,6 +73,7 @@ def test_worker_retries_on_handler_error(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_heartbeat_called_before_handler(monkeypatch):
     calls = []
 
@@ -95,7 +90,9 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
     monkeypatch.setattr(cli, "_heartbeat", _heartbeat)
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr(cli, "record_event", lambda **kwargs: None)
-    monkeypatch.setattr(cli, "post_event", lambda *args, **kwargs: {"status": 200, "latency_ms": 1})
+    monkeypatch.setattr(
+        cli, "post_event", lambda *args, **kwargs: {"status": 200, "latency_ms": 1}
+    )
 
     job = Job(
         type="pn_submit",
@@ -120,9 +117,12 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_requeue_and_cancel_paths(monkeypatch):
     record_calls = []
-    monkeypatch.setattr(cli, "record_event", lambda **kwargs: record_calls.append(kwargs))
+    monkeypatch.setattr(
+        cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
+    )
 
     job = Job(
         type="pn_submit",
@@ -151,6 +151,7 @@ def test_requeue_and_cancel_paths(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_non_retriable_error_marks_failed(monkeypatch):
     record_calls = []
 
@@ -189,6 +190,7 @@ def test_non_retriable_error_marks_failed(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
     record_calls = []
 
@@ -237,11 +239,24 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_non_retriable_raised_from_handlers(monkeypatch):
     record_calls = []
-    monkeypatch.setattr(cli, "record_event", lambda **kwargs: record_calls.append(kwargs))
+    monkeypatch.setattr(
+        cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
+    )
     monkeypatch.setattr(cli, "post_event", lambda *a, **k: {"status": 200})
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
+
+    # モックハンドラの登録
+    def _mock_handler_raising(payload, job_id=None, trace_id=None):
+        raise cli.NonRetriableError("test non-retriable")
+
+    # cli.REGISTRY を確実にパッチするために sys.modules から取得
+    import sys
+    cli_module = sys.modules["app.jobs.cli"]
+    monkeypatch.setitem(cli_module.REGISTRY, "clearance_pack", _mock_handler_raising)
+    monkeypatch.setitem(cli_module.REGISTRY, "pn_submit", _mock_handler_raising)
 
     job1 = Job(
         type="clearance_pack",
@@ -256,7 +271,12 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
         status="queued",
         attempts=0,
         next_run_at=datetime.utcnow() - timedelta(seconds=1),
-        payload_json={"traceId": "nr-pn", "product": {}, "logistics": {}, "consignee": {}},
+        payload_json={
+            "traceId": "nr-pn",
+            "product": {},
+            "logistics": {},
+            "consignee": {},
+        },
         trace_id="nr-pn",
     )
     db.session.add_all([job1, job2])
@@ -278,6 +298,7 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_failure_enqueues_retry_job(monkeypatch):
     record_calls = []
 
@@ -324,12 +345,23 @@ def test_webhook_failure_enqueues_retry_job(monkeypatch):
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_webhook_retry_respects_max_attempts(monkeypatch):
     # Directly enqueue webhook_retry job with low max_attempts=1
     monkeypatch.setattr("app.jobs.cli._heartbeat", lambda *a, **k: None)
     monkeypatch.setattr("app.jobs.cli.record_event", lambda **kw: True, raising=False)
-    monkeypatch.setattr("app.jobs.cli.post_event", lambda *a, **k: {"status": 503}, raising=False)
-    monkeypatch.setattr("app.jobs.handlers.webhook_retry.post_event", lambda *a, **k: {"status": 503}, raising=False)
+    monkeypatch.setattr(
+        "app.jobs.cli.post_event", lambda *a, **k: {"status": 503}, raising=False
+    )
+    monkeypatch.setattr(
+        "app.jobs.handlers.webhook_retry.post_event",
+        lambda *a, **k: {"status": 503},
+        raising=False,
+    )
+    # Config monkeypatch to fail after 1 attempt
+    import sys
+    cli_module = sys.modules["app.jobs.cli"]
+    monkeypatch.setattr(cli_module, "MAX_ATTEMPTS", 1)
 
     retry_job = Job(
         type="webhook_retry",
@@ -350,6 +382,13 @@ def test_webhook_retry_respects_max_attempts(monkeypatch):
 
     # first attempt -> retrying (attempts=1), second -> failed (attempts>=max)
     cli.worker_once(db.session)
+    
+    # データをリフレッシュして next_run_at を過去に戻す (そうしないと拾われない)
+    refreshed_retry = db.session.get(Job, retry_job.id)
+    refreshed_retry.next_run_at = datetime.utcnow() - timedelta(seconds=1)
+    db.session.add(refreshed_retry)
+    db.session.commit()
+    
     cli.worker_once(db.session)
 
     refreshed_retry = db.session.get(Job, retry_job.id)

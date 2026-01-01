@@ -1,24 +1,356 @@
-from flask import Blueprint, request, jsonify
+"""
+HS分類API - v1エンドポイント
+
+商品情報からHSコードを自動分類するAPIエンドポイント
+"""
+
+from typing import Tuple
+from flask import Blueprint, request, jsonify, Response
+from app.auth import require_api_key
+from app.audit import log_event
+from app.classify import HSClassifier, ClassificationError
+from app.models import HSClassification
+from app.db import db
+import time
+import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("v1_classify", __name__, url_prefix="/v1")
 
-@bp.post("/classify/hs")
-def classify_hs():
+
+@bp.route("/classify/hs", methods=["POST"])
+@require_api_key
+def classify_hs() -> Tuple[Response, int]:
+    """
+    HS分類API
+
+    商品情報からHSコードを自動分類し、信頼度スコアと判断根拠を返す。
+    """
+    start_time = time.time()
+
+    # トレースID取得/生成
     data = request.get_json(silent=True) or {}
-    product = data.get("product") or {}
-    if not isinstance(product, dict):
-        return jsonify({"status":"error","error":{"code":"INVALID_ARGUMENT","message":"product は必須"}}), 400
+    trace_id = (
+        request.headers.get("X-Trace-ID")
+        or data.get("traceId")
+        or f"hs-{uuid.uuid4().hex[:16]}"
+    )
 
-    ingredients = product.get("ingredients") or []
-    if not isinstance(ingredients, list) or len(ingredients) == 0:
-        return jsonify({"status":"error","error":{"code":"UNPROCESSABLE","message":"ingredients が空です"}}), 422
+    try:
+        # リクエストボディ取得 (dataは既に取得済み)
+        if not data:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "missing_required",
+                            "message": "Request body is required",
+                            "field": "body",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
 
-    # モック応答
-    return jsonify({
-        "hs_candidates": [
-            {"code": "1905.90", "confidence": 0.82, "rationale": ["wheat flour present", "baked product"]}
-        ],
-        "required_uom": "kg",
-        "review_required": False,
-        "risk_flags": []
-    }), 200
+        # product オブジェクト取得
+        product = data.get("product")
+        if not product:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "missing_required",
+                            "message": "product is required",
+                            "field": "product",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        if not isinstance(product, dict):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "invalid_argument",
+                            "message": "product must be an object",
+                            "field": "product",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # 必須フィールドチェック
+        if not product.get("name"):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "missing_required",
+                            "message": "product.name is required",
+                            "field": "product.name",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # セキュリティ検証: Trace ID (ログ出力前に検証必須)
+        import re
+
+        if not re.match(r"^[a-zA-Z0-9\-_:.]+$", trace_id):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "invalid_argument",
+                            "message": "Invalid trace_id format",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # セキュリティ検証: リソース制限 (DoS対策 - 早期リターン)
+        MAX_ITEMS = 100
+        ingredients = product.get("ingredients")
+        process = product.get("process")
+
+        if (
+            ingredients
+            and isinstance(ingredients, list)
+            and len(ingredients) > MAX_ITEMS
+        ):
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many ingredients (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        if process and isinstance(process, list) and len(process) > MAX_ITEMS:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many process steps (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # バリデーション
+        violations = []
+
+        # 国コード検証 (ISO 3166-1 alpha-2)
+        origin_country = product.get("origin_country")
+        if origin_country and len(origin_country) != 2:
+            violations.append(
+                {
+                    "field": "product.origin_country",
+                    "rule": "iso_3166_1_alpha_2",
+                    "message": f"Invalid country code: '{origin_country}'. Must be ISO 3166-1 alpha-2 format (2 characters).",
+                }
+            )
+
+        # ingredients型チェック (リストであることは確認済みだが詳細チェック)
+        if ingredients is not None:
+            if not isinstance(ingredients, list):
+                violations.append(
+                    {
+                        "field": "product.ingredients",
+                        "rule": "type_check",
+                        "message": "ingredients must be an array",
+                    }
+                )
+            elif len(ingredients) == 0:
+                violations.append(
+                    {
+                        "field": "product.ingredients",
+                        "rule": "not_empty",
+                        "message": "ingredients must not be empty",
+                    }
+                )
+
+        # process型チェック
+        if process is not None and not isinstance(process, list):
+            violations.append(
+                {
+                    "field": "product.process",
+                    "rule": "type_check",
+                    "message": "process must be an array",
+                }
+            )
+
+        if violations:
+            logger.warning(
+                f"Validation failed: trace_id={trace_id}, violations={violations}"
+            )
+            return jsonify({"violations": violations}), 422
+
+        # セキュリティ検証: リソース制限 (DoS対策)
+        MAX_ITEMS = 100
+        if ingredients and len(ingredients) > MAX_ITEMS:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many ingredients (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        if process and len(process) > MAX_ITEMS:
+            return (
+                jsonify(
+                    {
+                        "error": {
+                            "class": "resource_exhausted",
+                            "message": f"Too many process steps (max {MAX_ITEMS})",
+                            "severity": "block",
+                        }
+                    }
+                ),
+                400,
+            )
+
+        # 監査ログ: リクエスト受信
+        log_event(
+            trace_id=trace_id,
+            event="hs_classification_requested",
+            product_name=product.get("name"),
+            category=product.get("category"),
+            origin_country=origin_country,
+        )
+
+        # HS分類実行
+        classifier = HSClassifier()
+        try:
+            result = classifier.classify(product)
+        except ClassificationError as e:
+            # 分類失敗
+            log_event(
+                trace_id=trace_id,
+                event="hs_classification_failed",
+                error=str(e),
+                product_name=product.get("name"),
+            )
+
+            return (
+                jsonify(
+                    {
+                        "violations": [
+                            {
+                                "field": "classification",
+                                "rule": "min_confidence",
+                                "message": str(e),
+                            }
+                        ]
+                    }
+                ),
+                422,
+            )
+
+        # 処理時間計測
+        processing_time_ms = int((time.time() - start_time) * 1000)
+
+        # レスポンス生成 (OpenAPI準拠)
+        response = {
+            "hs_candidates": result["hs_candidates"],
+            "final_hs_code": result["final_hs_code"],
+            "duty_rate": {"ad_valorem_pct": None, "additional": []},
+            "risk_flags": {"ad_cvd": False, "import_alert": False},
+            "quota_applicability": None,
+            "review_required": result["review_required"],
+            "explanations": result.get("explanations", []),
+            "metadata": {
+                "classification_method": "rule_based",
+                "processing_time_ms": processing_time_ms,
+                "cache_hit": result.get("cache_hit", False),
+                "rules_version": classifier.get_rules_version(),
+            },
+        }
+
+        # DB保存
+        try:
+            hs_classification = HSClassification(
+                product_id=data.get("product_id"),
+                trace_id=trace_id,
+                product_name=product.get("name"),
+                category=product.get("category"),
+                origin_country=origin_country,
+                ingredients=ingredients,
+                process=process,
+                hs_candidates=result["hs_candidates"],
+                final_hs_code=result["final_hs_code"],
+                required_uom=result["required_uom"],
+                review_required=result["review_required"],
+                duty_rate=response["duty_rate"],
+                risk_flags=response["risk_flags"],
+                quota_applicability=response["quota_applicability"],
+                explanations=response["explanations"],
+                classification_method="rule_based",
+                processing_time_ms=processing_time_ms,
+                cache_hit=result.get("cache_hit", False),
+                rules_version=classifier.get_rules_version(),
+            )
+            db.session.add(hs_classification)
+            db.session.commit()
+
+            logger.info(
+                f"HS classification saved: id={hs_classification.id}, trace_id={trace_id}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save HS classification: {e}")
+            db.session.rollback()
+            # DB保存失敗してもレスポンスは返す
+
+        # 監査ログ: 分類成功
+        log_event(
+            trace_id=trace_id,
+            event="hs_classification_completed",
+            final_hs_code=result["final_hs_code"],
+            review_required=result["review_required"],
+            processing_time_ms=processing_time_ms,
+        )
+
+        return jsonify(response), 200
+
+    except Exception as e:
+        logger.error(f"Unexpected error in classify_hs: {e}", exc_info=True)
+        log_event(trace_id=trace_id, event="hs_classification_error", error=str(e))
+
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "class": "internal_error",
+                        "message": "An unexpected error occurred",
+                        "severity": "block",
+                    }
+                }
+            ),
+            500,
+        )

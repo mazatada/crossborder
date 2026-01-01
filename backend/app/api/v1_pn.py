@@ -6,6 +6,7 @@ from app.audit import record_event
 
 bp = Blueprint("v1_pn", __name__, url_prefix="/v1")
 
+
 @bp.post("/fda/prior-notice")
 def fda_prior_notice():
     data = request.get_json(silent=True) or {}
@@ -15,8 +16,25 @@ def fda_prior_notice():
     importer = data.get("importer")
     consignee = data.get("consignee")
 
-    if not trace_id or product is None or logistics is None or importer is None or consignee is None:
-        return jsonify({"status":"error","error":{"code":"INVALID_ARGUMENT","message":"traceId, product, logistics, importer, consignee は必須"}}), 400
+    if (
+        not trace_id
+        or product is None
+        or logistics is None
+        or importer is None
+        or consignee is None
+    ):
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": {
+                        "code": "INVALID_ARGUMENT",
+                        "message": "traceId, product, logistics, importer, consignee は必須",
+                    },
+                }
+            ),
+            400,
+        )
 
     job = Job(
         type="pn_submit",
@@ -24,9 +42,10 @@ def fda_prior_notice():
         attempts=0,
         next_run_at=func.now(),
         payload_json=data,
-        trace_id=trace_id
+        trace_id=trace_id,
     )
-    db.session.add(job); db.session.commit()
+    db.session.add(job)
+    db.session.commit()
 
     # 監査
     record_event(

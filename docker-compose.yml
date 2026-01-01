@@ -6,13 +6,23 @@ services:
       POSTGRES_PASSWORD: cbpass
       POSTGRES_DB: cbdb
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cb -d cbdb"]
+      test: [ "CMD-SHELL", "pg_isready -U cb -d cbdb" ]
       interval: 5s
       timeout: 3s
       retries: 20
     ports:
-      - "54320:5432"
+      - "65432:5432"
     env_file: .env
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "65379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   backend:
     # backend でビルド → そのイメージを worker/scheduler が使います
@@ -28,11 +38,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./backend:/app
       - ./docs:/docs
     ports:
-      - "5001:5000"
+      - "65001:5000"
 
   worker:
     image: crossborder-backend:latest
@@ -47,7 +59,7 @@ services:
     volumes:
       - ./backend:/app
     # entrypoint を上書きして CLI を直接起動（entrypoint.sh を経由しない）
-    entrypoint: ["python", "-m", "app.jobs.cli", "--mode", "worker"]
+    entrypoint: [ "python", "-m", "app.jobs.cli", "--mode", "worker" ]
 
   scheduler:
     image: crossborder-backend:latest
@@ -61,7 +73,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    entrypoint: ["python", "-m", "app.jobs.cli", "--mode", "scheduler"]
+    entrypoint: [ "python", "-m", "app.jobs.cli", "--mode", "scheduler" ]
 
   pytest:
     build: ./backend
@@ -76,8 +88,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    entrypoint: ["python", "-m", "pytest"]
-    command: ["-m", "unit or integration"]
+    entrypoint: [ "python", "-m", "pytest" ]
+    command: [ "-m", "unit or integration" ]
     restart: "no"
 
   playwright:
@@ -95,12 +107,16 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - ./backend:/app/backend
+      - frontend-node-modules:/app/frontend/node_modules
       - playwright-cache:/ms-playwright
-    entrypoint: ["/bin/bash", "-lc"]
+    entrypoint: [ "/bin/bash", "-lc" ]
     command:
       - |
-        npm ci --prefer-offline --no-progress
+        if [ ! -d node_modules/@playwright/test ]; then
+          npm ci --prefer-offline --no-progress
+        fi
         npx playwright test --project=api
 
 volumes:
+  frontend-node-modules:
   playwright-cache:

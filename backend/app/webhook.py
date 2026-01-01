@@ -5,16 +5,19 @@ import hashlib
 import json
 import time
 from urllib import request, error
+from typing import Optional
 
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 TIMEOUT = float(os.getenv("WEBHOOK_TIMEOUT_SEC", "3"))
 
+
 def _signature(body: bytes) -> str:
     mac = hmac.new(WEBHOOK_SECRET.encode("utf-8"), body, hashlib.sha256).hexdigest()
     return f"sha256={mac}"
 
-def post_event(event_type: str, payload: dict, trace_id: str | None = None) -> dict:
+
+def post_event(event_type: str, payload: dict, trace_id: Optional[str] = None) -> dict:
     """
     標準ライブラリのみでJSON POST。requests不要。
     戻り値: {"status": HTTPステータスコード, "latency_ms": int} / 失敗時 {"status": None, "error": "..."}
@@ -24,7 +27,9 @@ def post_event(event_type: str, payload: dict, trace_id: str | None = None) -> d
     if not WEBHOOK_SECRET:
         return {"skipped": True, "reason": "WEBHOOK_SECRET not set"}
 
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode(
+        "utf-8"
+    )
     headers = {
         "Content-Type": "application/json",
         "X-Event-Type": event_type,

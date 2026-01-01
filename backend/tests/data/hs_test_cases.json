@@ -1,0 +1,279 @@
+[
+    {
+        "id": "conf_001",
+        "description": "Chocolate cookies (Standard match)",
+        "product": {
+            "name": "Luxury Chocolate Chip Cookies",
+            "category": "confectionery",
+            "origin_country": "JP",
+            "ingredients": [
+                {
+                    "id": "ing_wheat_flour",
+                    "pct": 45.0
+                },
+                {
+                    "id": "ing_chocolate",
+                    "pct": 25.0
+                },
+                {
+                    "id": "ing_sugar",
+                    "pct": 15.0
+                },
+                {
+                    "id": "ing_butter",
+                    "pct": 10.0
+                }
+            ],
+            "process": [
+                "mixing",
+                "baking",
+                "packaging"
+            ]
+        },
+        "expected_hs": "1905.90",
+        "expect_review": false
+    },
+    {
+        "id": "conf_002",
+        "description": "Filled chocolates (Standard match)",
+        "product": {
+            "name": "Assorted Filled Chocolates",
+            "category": "confectionery",
+            "origin_country": "BE",
+            "ingredients": [
+                {
+                    "id": "ing_cocoa_mass",
+                    "pct": 40.0
+                },
+                {
+                    "id": "ing_sugar",
+                    "pct": 30.0
+                },
+                {
+                    "id": "ing_milk_solids",
+                    "pct": 15.0
+                },
+                {
+                    "id": "ing_hazelnut_paste",
+                    "pct": 10.0
+                }
+            ],
+            "process": [
+                "conching",
+                "tempering",
+                "molding"
+            ]
+        },
+        "expected_hs": "1806.90",
+        "expect_review": false
+    },
+    {
+        "id": "dairy_001",
+        "description": "Processed Cheese (Standard match)",
+        "product": {
+            "name": "Sliced Processed Cheese",
+            "category": "dairy",
+            "origin_country": "US",
+            "ingredients": [
+                {
+                    "id": "ing_cheddar_cheese",
+                    "pct": 80.0
+                },
+                {
+                    "id": "ing_emulsifiers",
+                    "pct": 5.0
+                },
+                {
+                    "id": "ing_water",
+                    "pct": 10.0
+                }
+            ],
+            "process": [
+                "grinding",
+                "heating",
+                "emulsifying"
+            ]
+        },
+        "expected_hs": "0406.30",
+        "expect_review": false
+    },
+    {
+        "id": "meat_001",
+        "description": "Beef Jerky (Standard match)",
+        "product": {
+            "name": "Spicy Beef Jerky",
+            "category": "meat",
+            "origin_country": "US",
+            "ingredients": [
+                {
+                    "id": "ing_beef",
+                    "pct": 90.0
+                },
+                {
+                    "id": "ing_spices",
+                    "pct": 5.0
+                },
+                {
+                    "id": "ing_salt",
+                    "pct": 3.0
+                }
+            ],
+            "process": [
+                "curing",
+                "drying",
+                "packaging"
+            ]
+        },
+        "expected_hs": "1602.50",
+        "expect_review": false
+    },
+    {
+        "id": "sea_001",
+        "description": "Canned Tuna (Standard match)",
+        "product": {
+            "name": "Tuna in Oil",
+            "category": "seafood",
+            "origin_country": "TH",
+            "ingredients": [
+                {
+                    "id": "ing_tuna_fillet",
+                    "pct": 75.0
+                },
+                {
+                    "id": "ing_vegetable_oil",
+                    "pct": 20.0
+                },
+                {
+                    "id": "ing_salt",
+                    "pct": 1.0
+                }
+            ],
+            "process": [
+                "canning",
+                "sterilization"
+            ]
+        },
+        "expected_hs": "1604.14",
+        "expect_review": false
+    },
+    {
+        "id": "bev_001",
+        "description": "Green Tea (Standard match)",
+        "product": {
+            "name": "Premium Green Tea Leaves",
+            "category": "beverages",
+            "origin_country": "JP",
+            "ingredients": [
+                {
+                    "id": "ing_green_tea_leaves",
+                    "pct": 100.0
+                }
+            ],
+            "process": [
+                "steaming",
+                "rolling",
+                "drying"
+            ]
+        },
+        "expected_hs": "0902.10",
+        "expect_review": false
+    },
+    {
+        "id": "bev_002",
+        "description": "Fruit Juice (Frozen)",
+        "product": {
+            "name": "Frozen Orange Juice Concentrate",
+            "category": "beverages",
+            "origin_country": "BR",
+            "ingredients": [
+                {
+                    "id": "ing_orange_juice_concentrate",
+                    "pct": 100.0
+                }
+            ],
+            "process": [
+                "extracting",
+                "concentration",
+                "freezing"
+            ]
+        },
+        "expected_hs": "2009.11",
+        "expect_review": false
+    },
+    {
+        "id": "supp_001",
+        "description": "Vitamin Supplement (Review Required)",
+        "product": {
+            "name": "Multi-Vitamin Complex",
+            "category": "other_food_preparations",
+            "origin_country": "US",
+            "ingredients": [
+                {
+                    "id": "ing_vitamin_c",
+                    "pct": 10.0
+                },
+                {
+                    "id": "ing_vitamin_b_complex",
+                    "pct": 5.0
+                },
+                {
+                    "id": "ing_cellulose",
+                    "pct": 80.0
+                }
+            ],
+            "process": [
+                "mixing",
+                "tableting"
+            ]
+        },
+        "expected_hs": "2106.90",
+        "expect_review": true
+    },
+    {
+        "id": "mix_001",
+        "description": "Mixed Ingredient Product (Complex)",
+        "product": {
+            "name": "Snack Mix with Nuts and Fruits",
+            "category": "other_food_preparations",
+            "origin_country": "US",
+            "ingredients": [
+                {
+                    "id": "ing_peanuts",
+                    "pct": 40.0
+                },
+                {
+                    "id": "ing_raisins",
+                    "pct": 30.0
+                },
+                {
+                    "id": "ing_chocolate_buttons",
+                    "pct": 20.0
+                }
+            ],
+            "process": [
+                "mixing",
+                "packaging"
+            ]
+        },
+        "expected_hs": "2008.19",
+        "expect_review": true
+    },
+    {
+        "id": "fail_001",
+        "description": "Unknown Product (Should Fail/Low Confidence)",
+        "product": {
+            "name": "Mysterious Powder",
+            "category": "unknown",
+            "origin_country": "XX",
+            "ingredients": [
+                {
+                    "id": "ing_unknown_substance",
+                    "pct": 100.0
+                }
+            ],
+            "process": []
+        },
+        "expected_hs": null,
+        "expect_review": true
+    }
+]

@@ -1,20 +1,13 @@
 import pytest
-from sqlalchemy import delete
 
 from app.db import db
 from app.models import Job
 
 
-@pytest.fixture(scope="module", autouse=True)
-def ensure_tables():
-    db.metadata.create_all(bind=db.engine)
-    yield
-    db.session.execute(delete(Job))
-    db.session.commit()
 
 
 @pytest.mark.integration
-def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
+def test_prior_notice_queues_job_and_records_event(client, monkeypatch, api_key_header):
     calls = []
 
     def _record_event(**kwargs):
@@ -29,7 +22,7 @@ def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
         "importer": {"name": "Importer Inc."},
         "consignee": {"name": "Consignee LLC"},
     }
-    response = client.post("/v1/fda/prior-notice", json=payload)
+    response = client.post("/v1/fda/prior-notice", json=payload, headers=api_key_header)
     assert response.status_code == 202
     job_id = response.get_json()["job_id"]
 
@@ -48,14 +41,15 @@ def test_prior_notice_queues_job_and_records_event(client, monkeypatch):
 
 
 @pytest.mark.integration
-def test_prior_notice_missing_required_fields(client):
-    response = client.post("/v1/fda/prior-notice", json={})
+def test_prior_notice_missing_required_fields(client, api_key_header):
+    response = client.post("/v1/fda/prior-notice", json={}, headers=api_key_header)
     assert response.status_code == 400
     body = response.get_json()
     assert body["error"]["code"] == "INVALID_ARGUMENT"
 
 
 @pytest.mark.integration
+@pytest.mark.postgres
 def test_worker_processes_prior_notice_job(monkeypatch):
     from datetime import datetime, timedelta
     from app.models import Job
@@ -68,7 +62,9 @@ def test_worker_processes_prior_notice_job(monkeypatch):
         record_calls.append(kwargs)
 
     def _post_event(event_type, payload, trace_id=None):
-        webhook_calls.append({"event_type": event_type, "payload": payload, "trace_id": trace_id})
+        webhook_calls.append(
+            {"event_type": event_type, "payload": payload, "trace_id": trace_id}
+        )
         return {"status": 200, "latency_ms": 5}
 
     monkeypatch.setattr("app.jobs.cli.record_event", _record_event)
@@ -86,8 +82,20 @@ def test_worker_processes_prior_notice_job(monkeypatch):
             "importer": {"name": "Importer Inc."},
             "consignee": {"name": "Consignee LLC"},
         },
-        trace_id="pn-trace-worker",
+        trace_id="test-pn-job",
     )
+
+    import sys
+    cli_module = sys.modules["app.jobs.cli"]
+    
+    # モックハンドラの登録 (成功させる + 期待値を返す)
+    monkeypatch.setitem(
+        cli_module.REGISTRY,
+        "pn_submit",
+        lambda *args, **k: {"ok": True, "receipt_media_id": "dev:pn-receipt"},
+    )
+
+    # 1. ジョブ作成
     db.session.add(job)
     db.session.commit()
 
