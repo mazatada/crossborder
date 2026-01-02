@@ -12,6 +12,8 @@ import json
 import logging
 import hashlib
 import os
+import time
+from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
 
@@ -40,14 +42,23 @@ class InMemoryCache(CacheBackend):
     """インメモリキャッシュ (開発・単一インスタンス用)"""
 
     def __init__(self, max_size: int = 1000):
-        self.cache: Dict[str, Any] = {}
+        self.cache = OrderedDict()
         self.max_size = max_size
         self.hit_count = 0
         self.miss_count = 0
+        self.expiry: Dict[str, float] = {}  # key -> expiry timestamp
 
     def get(self, key: str) -> Optional[Dict]:
         result = self.cache.get(key)
+        # TTLチェック
+        if result and key in self.expiry:
+            if time.time() > self.expiry[key]:
+                # 期限切れ
+                del self.cache[key]
+                del self.expiry[key]
+                result = None
         if result:
+            self.cache.move_to_end(key)  # アクセス時に最後に移動
             self.hit_count += 1
             logger.debug(f"Cache HIT: {key}")
         else:
@@ -57,23 +68,27 @@ class InMemoryCache(CacheBackend):
 
     def set(self, key: str, value: Dict, ttl: int = None):
         if len(self.cache) >= self.max_size:
-            # LRU削除 (簡易実装: Python 3.7+のdict順序を利用して最も古いものを削除)
-            try:
-                oldest_key = next(iter(self.cache))
-                del self.cache[oldest_key]
-                logger.debug(f"Cache eviction: {oldest_key}")
-            except StopIteration:
-                pass
+            # LRU削除: 最も古い（先頭の）エントリを削除
+            oldest_key, _ = self.cache.popitem(last=False)
+            self.expiry.pop(oldest_key, None)
+            logger.debug(f"Cache eviction: {oldest_key}")
 
         self.cache[key] = value
+        self.cache.move_to_end(key)  # 最後に移動
+        if ttl:
+            self.expiry[key] = time.time() + ttl
+        else:
+            self.expiry.pop(key, None)  # TTLなしの場合は削除
         logger.debug(f"Cache SET: {key}")
 
     def delete(self, key: str):
         if key in self.cache:
             del self.cache[key]
+            self.expiry.pop(key, None)
 
     def clear(self):
         self.cache.clear()
+        self.expiry.clear()
         self.hit_count = 0
         self.miss_count = 0
 
@@ -168,16 +183,34 @@ class HSCache:
     def generate_cache_key(self, product_data: Dict, rules_version: str) -> str:
         """キャッシュキーを生成 (ルールバージョン含む)"""
         # 正規化
+        if not isinstance(product_data, dict):
+            product_data = {}
+        rules_version = str(rules_version) if rules_version is not None else "unknown"
+
         ingredients = product_data.get("ingredients", [])
+        if not isinstance(ingredients, list):
+            ingredients = []
         # 成分は最大10個まで (キー肥大化防止)
         limited_ingredients = sorted(
-            [ing.get("id") for ing in ingredients[:10] if isinstance(ing, dict)],
+            [
+                ing.get("id")
+                for ing in ingredients[:10]
+                if isinstance(ing, dict) and ing.get("id") is not None
+            ],
             key=str,
         )
 
+        name_raw = product_data.get("name", "")
+        name_norm = str(name_raw).lower().strip()[:100]  # 100文字まで
+        category_raw = product_data.get("category", "")
+        category_norm = str(category_raw).lower()
+        process_raw = product_data.get("process", [])
+        if not isinstance(process_raw, list):
+            process_raw = []
+
         normalized = {
-            "name": product_data.get("name", "").lower().strip()[:100],  # 100文字まで
-            "category": product_data.get("category", "").lower(),
+            "name": name_norm,
+            "category": category_norm,
             "origin": (
                 product_data.get("origin_country", "").upper()
                 if product_data.get("origin_country")
@@ -185,7 +218,12 @@ class HSCache:
             ),
             "ingredients": limited_ingredients,
             "process": sorted(
-                [str(p).lower() for p in product_data.get("process", [])[:5]]
+                [
+                    str(p).lower()
+                    for p in process_raw[:5]
+                    if p is not None
+                ],
+                key=str,
             ),  # 5個まで
             "rules_version": rules_version,  # ルールバージョンを含める
         }
