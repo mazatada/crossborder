@@ -122,8 +122,23 @@ class RedisCache(CacheBackend):
         # 注意: 全キー削除は危険なので、プレフィックス付きキーのみ削除
         # ここではscan_iterを使用する実装例
         try:
-            for key in self.redis.scan_iter("hs_classify:*"):
-                self.redis.delete(key)
+            keys_to_delete = []
+            for key in self.redis.scan_iter("hs_classify:*", count=100):
+                keys_to_delete.append(key)
+                # バッチサイズに達したらパイプラインで削除
+                if len(keys_to_delete) >= 100:
+                    pipeline = self.redis.pipeline()
+                    for k in keys_to_delete:
+                        pipeline.delete(k)
+                    pipeline.execute()
+                    keys_to_delete = []
+
+            # 残りのキーを削除
+            if keys_to_delete:
+                pipeline = self.redis.pipeline()
+                for k in keys_to_delete:
+                    pipeline.delete(k)
+                pipeline.execute()
         except Exception as e:
             logger.error(f"Redis clear error: {e}")
 
@@ -141,7 +156,7 @@ class HSCache:
                 import redis
 
                 r = redis.from_url(redis_url)
-                r.ping()  # 切断確認
+                r.ping()  # 接続確認
                 logger.info("Using Redis cache backend")
                 self.backend = RedisCache(r)
             except Exception as e:
@@ -177,7 +192,8 @@ class HSCache:
 
         # ハッシュ化
         key_str = json.dumps(normalized, sort_keys=True)
-        return f"hs_classify:{hashlib.sha256(key_str.encode()).hexdigest()}"
+        digest = hashlib.sha256(key_str.encode()).hexdigest()
+        return f"hs_classify:{rules_version}:{digest}"
 
     def get(self, cache_key: str) -> Optional[Dict]:
         return self.backend.get(cache_key)
@@ -186,6 +202,33 @@ class HSCache:
         self.backend.set(cache_key, result, ttl)
 
     def invalidate_by_rules_version(self, rules_version: str):
-        """ルールバージョン変更時にキャッシュを無効化"""
+        """ルールバージョン変更時に対象バージョンのみ無効化"""
         logger.info(f"Invalidating cache for rules version: {rules_version}")
+        if isinstance(self.backend, InMemoryCache):
+            prefix = f"hs_classify:{rules_version}:"
+            keys = [k for k in self.backend.cache.keys() if k.startswith(prefix)]
+            for k in keys:
+                self.backend.delete(k)
+            return
+        if isinstance(self.backend, RedisCache):
+            pattern = f"hs_classify:{rules_version}:*"
+            try:
+                keys_to_delete = []
+                for key in self.backend.redis.scan_iter(pattern, count=100):
+                    keys_to_delete.append(key)
+                    if len(keys_to_delete) >= 100:
+                        pipeline = self.backend.redis.pipeline()
+                        for k in keys_to_delete:
+                            pipeline.delete(k)
+                        pipeline.execute()
+                        keys_to_delete = []
+                if keys_to_delete:
+                    pipeline = self.backend.redis.pipeline()
+                    for k in keys_to_delete:
+                        pipeline.delete(k)
+                    pipeline.execute()
+            except Exception as e:
+                logger.error(f"Redis invalidate error: {e}")
+            return
+        # Fallback: clear all if backend type is unknown
         self.backend.clear()
