@@ -1,11 +1,37 @@
 # PR進捗記録 - feature/hs-api-impl
 
-**記録日時**: 2025-12-20 22:12 JST  
+**記録日時**: 2026-01-01 01:15 JST  
 **ブランチ**: `feature/hs-api-impl`  
 **ベースブランチ**: `main`  
-**ステータス**: レビュー修正完了、PR更新待ち
+**ステータス**: PR更新済み、CI待ち
 
 ---
+
+## 2026-01-01 更新サマリ
+
+### 最新状態
+- **最新コミット**: `fc6da846` - chore: cache Playwright node_modules in compose
+- **リモート同期**: `origin/feature/hs-api-impl` と同期済み
+
+### 追加対応（12/20以降）
+- webhook_endpoints/order_statuses のマイグレーション追加 + DLQ依存の修正
+- jobs スキーマのランタイム列整備（attempts/next_run_at/payload_json/result_json）
+- pytest用DB切替の安定化（SQLiteでdrop_allがPostgresに影響しないよう修正）
+- Playwright APIスモークのpayload更新とnode_modulesキャッシュ化
+- ruff/black 方針の統一（E501はruff設定で無視、ガイド追記）
+
+### テスト結果（ローカル）
+- pytest: 23 passed
+- Playwright: 5 passed
+- ruff: pass（E501は設定で無視）
+
+### 次のアクション
+- GitHub Actions のCI完了確認 → PRマージ判断
+\n### 追記（2026-01-01 21:17 JST）\n- /v1/export/isf と /v1/export/entry を公開（v1_export を登録）\n- /v1/products/:id/compliance を追加し、HS分類・ジョブ状況を参照可能にした\n
+### 追記（2026-01-01）
+- 総合チェックリストと残作業の洗い出しを整理し、仕様書 `docs/spec/backend_completion_spec_v1.md` を作成
+- 残作業の確認項目: main CI green / pytest security マーカー / npm audit 方針 / OpenAPI 運用化 / Secrets 方針 / CORS 検証 / PII マスキング
+
 
 ## 📊 現在の状態
 
@@ -166,6 +192,7 @@ git push origin feature/hs-api-impl
 - [CHANGELOG.md](file:///d:/works2025/越境EC/crossover_win/crossborder/CHANGELOG.md)
 - [docs/ci_plan.md](file:///d:/works2025/越境EC/crossover_win/crossborder/docs/ci_plan.md)
 - [docs/deployment.md](file:///d:/works2025/越境EC/crossover_win/crossborder/docs/deployment.md)
+- [docs/spec/backend_completion_spec_v1.md](file:///d:/works2025/越境EC/crossover_win/crossborder/docs/spec/backend_completion_spec_v1.md)
 - [docs/runbook.md](file:///d:/works2025/越境EC/crossover_win/crossborder/docs/runbook.md)
 - [docs/webhook_retry.md](file:///d:/works2025/越境EC/crossover_win/crossborder/docs/webhook_retry.md)
 
@@ -177,6 +204,8 @@ git push origin feature/hs-api-impl
 - [x] コード品質チェック (black/ruff/mypy) パス
 - [x] セキュリティ対策実装
 - [x] ドキュメント整備完了
+- [x] 総合チェックリストと残作業の洗い出しを整理
+- [x] 仕様書 `docs/spec/backend_completion_spec_v1.md` 作成
 - [ ] 変更のコミット (test_hs_classifier.py, test_job_runtime.py)
 - [ ] リモートへプッシュ
 - [ ] CI/CD通過確認
@@ -184,5 +213,6 @@ git push origin feature/hs-api-impl
 
 ---
 
-**記録者**: Google Antigravity AI Assistant  
+**記録者**: Google Antigravity AI Assistant
 **次回更新**: PR更新後
+
