@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- OpenAPI 検証スクリプトと CI ステップ（scripts/validate_openapi.py）
+- pytest security マーカーの登録
+- 監査イベントの PII レダクション（redact_pii）とテスト
 - Plan8: ドキュメント・ナレッジ管理体系
   - Runbook (運用手順書)
   - CHANGELOG.md
@@ -28,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Webhook再送機能 (最大5回、72時間保持)
 
 ### Changed
+- CORS を CORS_ORIGINS / CORS_ALLOW_ORIGINS で環境別制御
+- セキュリティ運用方針（Secrets/PII/npm audit）を文書化
 - `.env.example`: 全環境変数のサンプルを追加
 - `pytest.ini`: カバレッジ設定とE2Eマーカーを追加
 - `requirements.txt`: pytest-covを追加
@@ -92,3 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 4. **セキュリティ**: `Security`セクションに記載
 
 リリース時は、`[Unreleased]`セクションを新しいバージョン番号に変更し、リリース日を追加してください。
+
+
+
+
