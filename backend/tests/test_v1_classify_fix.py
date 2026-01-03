@@ -8,7 +8,7 @@ def test_classify_hs_no_json(client, api_key_header):
     response = client.post('/v1/classify/hs', headers=api_key_header)
     
     assert response.status_code != 500
-    # 期待値: 400 (Bad Request - Body missing) or 401 (Unauthorized)
+    # 期待値: 400 (Bad Request), 415 (Unsupported Media Type), or 422 (Unprocessable Entity)
     assert response.status_code in [400, 415, 422]
 
 def test_classify_hs_invalid_json(client, api_key_header):

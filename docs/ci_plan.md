@@ -16,6 +16,7 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
     - `mypy app` (型安全性の確保)
 - **Test:** `pytest` (Unit & Integration tests).
     - **Target Coverage:** 80% (Fail if under 80%).
+    - **最新のローカル実行結果 (2026-01-03):** 23 passed, 81 deselected (3.58s)
 
 ### 2.2. Knowledge Guard (`.github/workflows/knowledge-guard.yml`)
 **Trigger:** Schedule (Nightly at 01:00 UTC), Manual Dispatch.
@@ -42,6 +43,7 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
     - *Action:* Configure `pytest` to generate XML and upload via `actions/upload-artifact`.
 - **Playwright Traces:** On failure, Playwright traces/screenshots are lost.
     - *Action:* Upload `test-results/` as artifacts on failure.
+    - **最新のローカル実行結果 (2026-01-03):** 5 passed (2.3s)
 - **Watchdog Reports:** `knowledge-guard` generates reports inside the container but doesn't persist them.
     - *Action:* Upload `docs/regulations/reports` as a workflow artifact.
 

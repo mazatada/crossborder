@@ -57,13 +57,17 @@
 
 ## 5. 残作業の洗い出し（要確認/未完了）
 - [ ] GitHub Actions の main CI が green であることの確認
-- [x] ローカルDockerで lint/type/pytest/Playwright 全通過（2026-01-01 実施）
+- [x] ローカルDockerで lint/type/pytest/Playwright 全通過（2026-01-03 再確認）
 - [x] pytest の `security` マーカー登録（警告解消）
 - [x] Playwright 依存の脆弱性（npm audit）対応方針の決定
 - [x] OpenAPI 生成/検証ステップの実運用化
 - [x] Secrets の安全管理ポリシー確定（env以外の管理方法）
 - [x] CORS 設定の環境別検証
 - [x] PII マスキングの実装/監査（ログ出力検証）
+- [ ] イベントカタログの定義と、Webhook送信イベントの一覧・ペイロードの確定
+- [ ] Inbound `ORDER_PAID` / `ORDER_CANCELED` の必須項目・バリデーション定義（仕様書整合）
+- [ ] データ保持/非保持ポリシーの明文化（PIIを含む保持期間）
+- [ ] OpenAPIドラフト仕様の未反映分（Webhook送信/受信I/F）の反映方針決定
 
 ## 6. 判定ルール
 - 「4.」がすべて 実装済み になれば **実装完了**
