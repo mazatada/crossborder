@@ -11,9 +11,9 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
 - **Build:** Docker Compose build for backend.
 - **Lint (静的解析):**
     - `ruff check app tests` (ロジック・規約チェック、自動修正対応)
-    - `black --check app` (コードフォーマットチェック)
+    - `black --check app tests` (コードフォーマットチェック)
 - **Type Check (型定義チェック):**
-    - `mypy app` (型安全性の確保)
+    - `mypy app tests` (型安全性の確保)
 - **Test:** `pytest` (Unit & Integration tests).
     - **Target Coverage:** 80% (Fail if under 80%).
     - **最新のローカル実行結果 (2026-01-03):** 23 passed, 81 deselected (3.58s)
@@ -33,8 +33,7 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
     - *Action:* Cache `pip` directories or use a multi-stage Docker build with cached base layers.
 
 ### 3.2. Quality Gates (Medium Priority)
-- **Type Checking:** No static type checking is currently performed.
-    - *Action:* Add `mypy` step to `ci.yml`.
+- **Type Checking:** `mypy` を `app tests` へ拡張済み。
 - **Security Scanning:** No vulnerability scanning.
     - *Action:* Add `bandit` or `trivy` for container scanning.
 
@@ -66,7 +65,7 @@ This document outlines the Continuous Integration (CI) strategy for the Crossbor
 
 ### Phase 2: Optimization
 - [ ] Implement Docker Layer Caching.
-- [ ] Add `mypy` to the linting stage.
+- [ ] Tighten mypy rules as codebase matures.
 
 ### Phase 3: Advanced
 - [ ] Add CD (Continuous Deployment) steps (e.g., to staging environment).

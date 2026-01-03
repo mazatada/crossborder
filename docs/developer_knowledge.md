@@ -73,7 +73,7 @@ PRを作成する前に、以下の手順をローカルで必ず実施するこ
   ```
 - [ ] **Type Check**:
   ```bash
-  docker compose run --rm --entrypoint mypy backend app
+  docker compose run --rm --entrypoint mypy backend app tests
   ```
 - [ ] **Test**:
   ```bash

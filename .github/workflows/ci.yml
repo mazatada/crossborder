@@ -37,10 +37,10 @@ jobs:
         run: docker compose run --rm --entrypoint ruff backend check app tests
 
       - name: Python style (black)
-        run: docker compose run --rm --entrypoint black backend --check app
+        run: docker compose run --rm --entrypoint black backend --check app tests
 
       - name: Python type check (mypy)
-        run: docker compose run --rm --entrypoint mypy backend app
+        run: docker compose run --rm --entrypoint mypy backend app tests
 
       - name: Generate ERD and DDL
         run: docker compose run --rm -v ${{ github.workspace }}/scripts:/app/scripts backend python scripts/generate_erd.py

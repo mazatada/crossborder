@@ -43,7 +43,7 @@ format-check: ## Check code formatting
 	docker-compose run --rm --entrypoint black backend --check app tests
 
 type: ## Run type checker (mypy)
-	docker-compose run --rm --entrypoint mypy backend app
+	docker-compose run --rm --entrypoint mypy backend app tests
 
 clean: ## Clean up Docker resources
 	docker-compose down -v
