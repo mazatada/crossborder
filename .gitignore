@@ -11,6 +11,8 @@
 # OS / Config
 .DS_Store
 .env
+.last_good_commit
+.deploy_lock
 
 # Python
 __pycache__/

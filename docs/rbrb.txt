@@ -1,0 +1,94 @@
+---
+並行実行の制御が欠落しています。
+複数のデプロイメントが同時に実行される可能性があり、特に本番環境では危険です。concurrencyグループを追加して、同じ環境への同時デプロイを防止してください。
+ jobs:
+   deploy:
+     runs-on: ubuntu-latest
+     timeout-minutes: 30
+     environment: ${{ github.event.inputs.environment || 'staging' }}
++    concurrency:
++      group: deploy-${{ github.event.inputs.environment || 'staging' }}
++      cancel-in-progress: false
+---
+:latestタグの使用は避け、セキュリティスキャンを追加してください
+
+以下の懸念事項があります：
+1:latestタグの使用：:latestタグは本番環境でのデプロイメントにおけるアンチパターンです。ロールバックが困難になり、どのバージョンがデプロイされているか不明確になります。環境固有のタグ（例：staging-${{ github.sha }}、production-v1.2.3）を使用することを推奨します。
+
+2:セキュリティスキャンの欠如：イメージをプッシュする前に脆弱性スキャンを実行するステップがありません。本番環境にデプロイする前にセキュリティチェックを追加することを強く推奨します。
+
+       - name: Build and push backend image
+         uses: docker/build-push-action@v5
+         with:
+           context: ./backend
+           push: true
+           tags: |
+-            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
+-            ${{ secrets.REGISTRY_URL }}/crossborder-backend:latest
++            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
++            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ inputs.environment || 'staging' }}-${{ github.sha }}
+           cache-from: type=gha
+           cache-to: type=gha,mode=max
+       
++      - name: Scan Docker image for vulnerabilities
++        uses: aquasecurity/trivy-action@master
++        with:
++          image-ref: ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
++          format: 'sarif'
++          output: 'trivy-results.sarif'
++
++      - name: Upload Trivy results to GitHub Security
++        uses: github/codeql-action/upload-sarif@v2
++        if: always()
++        with:
++          sarif_file: 'trivy-results.sarif'
++
+       - name: Run database migrations
+---
+マイグレーション実行のタイミングに問題があります。
+
+現在の構成では、マイグレーションがデプロイメント前に実行されようとしていますが、コメント例のdocker compose exec backend alembic upgrade headは実行中のコンテナが必要です。これは以下のいずれかの方法で解決する必要があります：
+
+1:マイグレーションをコンテナの起動プロセスに組み込む
+2:デプロイメント後にマイグレーションを実行する
+3:デプロイされたエンドポイント経由でマイグレーションをトリガーする
+現在の順序では、マイグレーションが正常に実行されません。
+---
+デプロイメントロジックの実装が必要です
+
+デプロイメントステップがプレースホルダーのままです。これはワークフローの中核となる機能であり、実装が必須です。実際のデプロイメント方法（Docker Compose、Kubernetes、ECS、その他のオーケストレーションツール）に基づいて実装してください。
+---
+ヘルスチェックの実装が推奨されます
+
+ヘルスチェックステップがプレースホルダーのままです。デプロイメント後にサービスが正常に起動したことを確認するヘルスチェックは、信頼性の高いデプロイメントに不可欠です。実装せずにデプロイを進めると、サービスが実際には起動していない、または正常に動作していない場合でもデプロイメントが成功したと判断される可能性があります。
+
+       - name: Health check
+         run: |
+-          # Wait for service to be healthy
+-          echo "Checking service health..."
+-          # curl -f http://your-service-url/v1/health || exit 1
++          echo "Waiting for service to be ready..."
++          for i in {1..30}; do
++            if curl -f ${{ secrets.SERVICE_URL }}/v1/health > /dev/null 2>&1; then
++              echo "Service is healthy!"
++              exit 0
++            fi
++            echo "Attempt $i: Service not ready yet..."
++            sleep 10
++          done
++          echo "Health check failed after 5 minutes"
++          exit 1
+---
+ロールバック戦略が不完全です。
+
+現在のロールバックロジックには以下の問題があります：
+
+1:どのイメージバージョンにロールバックするかが指定されていない
+2:データベースマイグレーションのロールバックが考慮されていない（複雑で多くの場合不可能）
+3:単なる再作成ではなく、既知の正常なイメージタグをプルして使用すべき
+実装時には、以下を考慮してください：
+
+前回の正常なデプロイメントのSHAまたはタグを記録する
+データベーススキーマの下位互換性を維持する
+ブルーグリーンデプロイメントなど、より堅牢なデプロイ戦略を検討する
+---

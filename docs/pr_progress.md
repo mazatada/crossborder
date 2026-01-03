@@ -7,6 +7,24 @@
 
 ---
 
+## 2026-01-03 更新サマリ
+
+### 最新状態
+- ローカルWindows運用の方針をソース運用に統一
+- ヘルスチェックURLを `http://localhost:65001/v1/health` に統一
+- ローカル運用スクリプトでロールバック/排他/last_good_commit保存を実装
+
+### 追記（2026-01-03）
+- 進捗記録をセッション単位で `.serena/memories/progress_log/YYYY-MM-DD/session_<NN>.md` に残す運用を採用
+
+### 更新ファイル
+- `docs/deployment_strategy.md`
+- `docs/deployment.md`
+- `docs/runbook.md`
+- `docs/rbrb.txt`
+- `scripts/local_deploy.ps1`
+- `.gitignore`
+
 ## 2026-01-01 更新サマリ
 
 ### 最新状態

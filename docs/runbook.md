@@ -27,7 +27,7 @@ docker-compose up -d
 
 # 起動確認
 docker-compose ps
-curl http://localhost:5000/health
+curl http://localhost:65001/v1/health
 ```
 
 ### 停止
@@ -222,7 +222,7 @@ make up
 
 3. **動作確認**
    ```bash
-   curl -H "Authorization: Bearer new-key-3" http://localhost:5000/v1/health
+   curl -H "Authorization: Bearer new-key-3" http://localhost:65001/v1/health
    ```
 
 ### APIキーのローテーション
@@ -349,7 +349,7 @@ docker-compose exec db psql -U cb -d cbdb -c "
 
 ```bash
 # APIヘルスチェック
-curl http://localhost:5000/health
+curl http://localhost:65001/v1/health
 
 # データベースヘルスチェック
 docker-compose exec db pg_isready -U cb -d cbdb
