@@ -53,6 +53,17 @@
 - 段階2: `origin_country`/FTA を考慮した最終税率に更新
 - 段階3: `duty_rate_override` 更新時に `Compliance` 側へ反映
 
+#### データソース移行計画
+- MVP: アプリ内の固定テーブル（コード内定義）
+- Phase A: 設定ファイル化（YAML/JSON）し、デプロイ時に差し替え可能にする
+- Phase B: DBテーブル化（tariff_rates）し、`as_of`/履歴管理を追加
+- Phase C: 外部ソース連携（公式税率表の取り込み）
+
+- 初期: `ad_valorem_rate` は null を許容（互換期間）
+- 段階1: TariffRateResponse の `duty_rate.ad_valorem_rate` を `hs_code`/`destination_country` から算出
+- 段階2: `origin_country`/FTA を考慮した最終税率に更新
+- 段階3: `duty_rate_override` 更新時に `Compliance` 側へ反映
+
 
 関税率の参照および関税額の計算を提供するAPI群。
 
