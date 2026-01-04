@@ -9,6 +9,30 @@ def test_get_tariff_ok(client, api_key_header):
     assert data["duty_rate"]["ad_valorem_pct"] == 5.0
 
 
+def test_get_tariff_with_origin_and_as_of(client, api_key_header):
+    resp = client.get(
+        "/v1/tariffs/US/1905.90?origin_country=JP&as_of=2025-12-06",
+        headers=api_key_header,
+    )
+    assert resp.status_code == 200
+
+
+def test_get_tariff_invalid_origin_country(client, api_key_header):
+    resp = client.get(
+        "/v1/tariffs/US/1905.90?origin_country=JPN",
+        headers=api_key_header,
+    )
+    assert resp.status_code == 400
+
+
+def test_get_tariff_invalid_as_of(client, api_key_header):
+    resp = client.get(
+        "/v1/tariffs/US/1905.90?as_of=20251206",
+        headers=api_key_header,
+    )
+    assert resp.status_code == 400
+
+
 def test_get_tariff_not_found(client, api_key_header):
     resp = client.get("/v1/tariffs/US/9999.99", headers=api_key_header)
     assert resp.status_code == 404

@@ -53,6 +53,10 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
 
     if not destination_country or len(destination_country) != 2:
         return _error_400("Invalid destination_country", "destination_country")
+    if origin_country and len(origin_country) != 2:
+        return _error_400("Invalid origin_country", "origin_country")
+    if as_of and not re.match(r"^\\d{4}-\\d{2}-\\d{2}$", as_of):
+        return _error_400("Invalid as_of format (YYYY-MM-DD)", "as_of")
     if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", hs_code):
         return _error_400("Invalid hs_code format", "hs_code")
 
@@ -79,7 +83,7 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
             "tariff_schedule_version": tariff["tariff_schedule_version"],
             "source": "internal_master",
             "last_updated_at": tariff["last_updated_at"],
-            "note": "origin_country/as_of are accepted but not yet applied (MVP).",
+            "note": "origin_country/as_of are accepted; as_of is validated for format only (MVP).",
         },
     }
     return jsonify(response), 200
