@@ -54,7 +54,7 @@
    - 移行戦略を `docs/if_spec_extended.md` に明記
    - 参照コミット: `900d1ec4`, `93e86698`, `2397ba47`, `198d06c0`
    - 影響ファイル: `backend/openapi.yaml`, `frontend/src/types.ts`, `docs/if_spec_extended.md`
-   - 検証レベル: ドキュメント/契約更新のみ（実装算出は未着手）
+  - 検証レベル: ドキュメント/契約更新のみ（実装算出は未着手、要注意）
 
 ### M4: 実装・検証への接続
 

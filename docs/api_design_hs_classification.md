@@ -55,6 +55,7 @@
 
 > **重要**: 本仕様は既存の [`openapi.yaml`](file:///d:/works2025/越境EC/crossover_win/crossborder/backend/openapi.yaml) と完全に整合しています。
 > 互換期間中は `ad_valorem_rate` が null の場合があり、UIは「未算出」を表示する。
+> 表示対象: HS分類結果画面（/v1/classify/hs の duty_rate）
 
 ### エンドポイント
 
@@ -153,6 +154,7 @@ X-Trace-ID: {trace_id}  (オプション)
     "ad_valorem_pct": 0.0,
     "additional": []
   },
+  // 互換条件: ad_valorem_pct は ad_valorem_rate*100 と一致必須（両方指定時）
   "risk_flags": {
     "ad_cvd": false,
     "import_alert": false
