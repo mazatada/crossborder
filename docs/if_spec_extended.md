@@ -40,6 +40,7 @@
 - 相互制約: `ad_valorem_pct` は `ad_valorem_rate * 100` と一致必須
   - 受信時に両方が指定された場合は一致必須（例: 0.05 と 5.0）
 - 移行期間の終了後は `ad_valorem_pct` を廃止予定（次期メジャーで削除予定）
+- UI表示: `ad_valorem_rate` が null の場合は「未算出」と表示する
 
 
 ---
