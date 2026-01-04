@@ -1,12 +1,13 @@
 from typing import Dict, Any, Optional, Tuple
 from flask import Blueprint, request, jsonify, Response
 import re
+import os
+import json
 from app.auth import require_api_key
 
 bp = Blueprint("v1_tariffs", __name__, url_prefix="/v1")
 
-# Minimal in-process tariff table (MVP)
-TARIFFS: Dict[Tuple[str, str], Dict[str, Any]] = {
+DEFAULT_TARIFFS: Dict[Tuple[str, str], Dict[str, Any]] = {
     ("US", "190590"): {
         "ad_valorem_rate": 0.05,
         "currency": "USD",
@@ -16,6 +17,43 @@ TARIFFS: Dict[Tuple[str, str], Dict[str, Any]] = {
         "additional_duties": [],
     }
 }
+
+_TARIFFS_CACHE: Optional[Dict[Tuple[str, str], Dict[str, Any]]] = None
+_TARIFF_SOURCE: str = "internal_master"
+
+
+def _load_tariffs() -> Dict[Tuple[str, str], Dict[str, Any]]:
+    global _TARIFFS_CACHE, _TARIFF_SOURCE
+    if _TARIFFS_CACHE is not None:
+        return _TARIFFS_CACHE
+
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    default_path = os.path.join(base_dir, "data", "tariffs.json")
+    tariffs_path = os.getenv("TARIFFS_PATH", default_path)
+
+    try:
+        with open(tariffs_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+            items = payload.get("tariffs", [])
+            source = payload.get("source", "internal_master")
+            result: Dict[Tuple[str, str], Dict[str, Any]] = {}
+            for t in items:
+                key = (t["destination_country"].upper(), _normalize_hs_code(t["hs_code"]))
+                result[key] = {
+                    "ad_valorem_rate": t["ad_valorem_rate"],
+                    "currency": t.get("currency", "USD"),
+                    "basis_uom": t.get("basis_uom"),
+                    "tariff_schedule_version": t.get("tariff_schedule_version", "unknown"),
+                    "last_updated_at": t.get("last_updated_at"),
+                    "additional_duties": t.get("additional_duties", []),
+                }
+            _TARIFFS_CACHE = result or DEFAULT_TARIFFS
+            _TARIFF_SOURCE = source
+            return _TARIFFS_CACHE
+    except Exception:
+        _TARIFFS_CACHE = DEFAULT_TARIFFS
+        _TARIFF_SOURCE = "internal_master"
+        return _TARIFFS_CACHE
 
 
 def _normalize_hs_code(code: str) -> str:
@@ -42,7 +80,8 @@ def _get_tariff(
     destination_country: str, hs_code: str
 ) -> Optional[Dict[str, Any]]:
     key = (destination_country.upper(), _normalize_hs_code(hs_code))
-    return TARIFFS.get(key)
+    tariffs = _load_tariffs()
+    return tariffs.get(key)
 
 
 @bp.get("/tariffs/<destination_country>/<hs_code>")
@@ -81,7 +120,7 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
         "additional_duties": tariff["additional_duties"],
         "metadata": {
             "tariff_schedule_version": tariff["tariff_schedule_version"],
-            "source": "internal_master",
+            "source": _TARIFF_SOURCE,
             "last_updated_at": tariff["last_updated_at"],
             "note": "origin_country/as_of are accepted; as_of is validated for format only (MVP).",
         },

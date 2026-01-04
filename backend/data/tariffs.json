@@ -1,0 +1,15 @@
+{
+  "source": "internal_master",
+  "tariffs": [
+    {
+      "destination_country": "US",
+      "hs_code": "190590",
+      "ad_valorem_rate": 0.05,
+      "currency": "USD",
+      "basis_uom": null,
+      "tariff_schedule_version": "HTSUS_2025_v3",
+      "last_updated_at": "2025-11-20T00:00:00Z",
+      "additional_duties": []
+    }
+  ]
+}

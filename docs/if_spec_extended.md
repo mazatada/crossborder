@@ -1,6 +1,6 @@
 # IF Specification: Extended Backend APIs
 
-対象: Duty Calculation / HS Code Master / HS Classification Review / HS Rule Management / Product Compliance  
+対象: Duty Calculation / HS Code Master / HS Classification Review / HS Rule Management / Product Compliance
 前提: 既存 `openapi.yaml` / `SPEC.md` に準拠し、後方互換を維持した上での追加APIである。
 参照: `backend/openapi.yaml` / `docs/spec/SPEC.md`
 
@@ -12,22 +12,22 @@
 
 - 認証: `Authorization: Bearer <api_key>`（既存仕様と同一）
 - バージョン: `/v1/` プレフィックスを維持
-- エラー形式: 既存の `Error400` / `Violation422` スキーマを再利用  
-  - 400: 必須欠落・型不正  
-  - 404: リソース未存在  
-  - 409: 競合（レビュー済みレコードの更新試行など）  
+- エラー形式: 既存の `Error400` / `Violation422` スキーマを再利用
+  - 400: 必須欠落・型不正
+  - 404: リソース未存在
+  - 409: 競合（レビュー済みレコードの更新試行など）
   - 422: ビジネスバリデーション違反（ルール評価不能など）
 
 ### 0.2 トレース・監査
 
 - 可能な限り `X-Trace-ID` ヘッダと `trace_id` プロパティを利用
-- 重要な変更操作（HS分類レビュー更新、ルールCRUD）は `audit_event` に記録  
+- 重要な変更操作（HS分類レビュー更新、ルールCRUD）は `audit_event` に記録
   - event: `"hs.review.update"`, `"hs.rule.create"` など
   - actor: APIキー起点（operator/customs/law などのRBACは将来拡張）
 
 ### 0.3 日付・日時フォーマット
 
-- 日付: `YYYY-MM-DD`  
+- 日付: `YYYY-MM-DD`
 - 日時: ISO 8601（UTC, `Z` サフィックス）
 
 
@@ -46,6 +46,7 @@
 ---
 
 ## 1. Duty Calculation API
+
 ### 1.0 DutyRate算出方針（段階導入）
 
 - 初期: `ad_valorem_rate` は null を許容（互換期間）
@@ -54,10 +55,12 @@
 - 段階3: `duty_rate_override` 更新時に `Compliance` 側へ反映
 
 #### データソース移行計画
+
 - MVP: アプリ内の固定テーブル（コード内定義）
 - Phase A: 設定ファイル化（YAML/JSON）し、デプロイ時に差し替え可能にする
 - Phase B: DBテーブル化（tariff_rates）し、`as_of`/履歴管理を追加
 - Phase C: 外部ソース連携（公式税率表の取り込み）
+- Phase A 実装: `backend/data/tariffs.json` を参照
 
 - 初期: `ad_valorem_rate` は null を許容（互換期間）
 - 段階1: TariffRateResponse の `duty_rate.ad_valorem_rate` を `hs_code`/`destination_country` から算出
@@ -75,15 +78,15 @@
 
 #### パスパラメータ
 
-- `destination_country` (string, ISO 3166-1 alpha-2, 必須)  
-- `hs_code` (string, 必須)  
+- `destination_country` (string, ISO 3166-1 alpha-2, 必須)
+- `hs_code` (string, 必須)
   - 形式: `"^\d{4}(\.\d{2}){0,2}$"` または `^\d{6,10}$` を許容（正規化済み or ドット付き）
 
 #### クエリパラメータ
 
-- `origin_country` (string, 任意)  
+- `origin_country` (string, 任意)
   - 原産国。FTA/特恵税率の判定に利用。
-- `as_of` (string, date, 任意)  
+- `as_of` (string, date, 任意)
   - `YYYY-MM-DD`。省略時は当日。
 
 #### 成功レスポンス 200
@@ -120,18 +123,18 @@
 
 #### 主なフィールド仕様
 
-- `duty_rate.type`: "ad_valorem" | "specific" | "mixed"  
-- `duty_rate.ad_valorem_rate`: 関税率（小数、0.05 は 5%）  
-- **移行**: `ad_valorem_pct` は互換期間のみ（5.0は5%）  
-- `duty_rate.specific`: 従量税額（1単位あたり）  
+- `duty_rate.type`: "ad_valorem" | "specific" | "mixed"
+- `duty_rate.ad_valorem_rate`: 関税率（小数、0.05 は 5%）
+- **移行**: `ad_valorem_pct` は互換期間のみ（5.0は5%）
+- `duty_rate.specific`: 従量税額（1単位あたり）
 - `additional_duties[]`:
   - `type`: `"section301"`, `"safeguard"`, `"anti_dumping"`, `"countervailing"` など
   - `rate_type`: `"ad_valorem"` or `"specific"`
 
 #### エラー
 
-- 400: フォーマット不正（国コード/日付）  
-- 404: 指定HS/国/日付で税率未定義  
+- 400: フォーマット不正（国コード/日付）
+- 404: 指定HS/国/日付で税率未定義
 - 422: 内部ルール評価不能
 
 ---
@@ -223,8 +226,8 @@
 
 #### エラー
 
-- 400: 必須欠落・型不正  
-- 404: 税率情報が見つからない  
+- 400: 必須欠落・型不正
+- 404: 税率情報が見つからない
 - 422: ロジック上不整合（例: valuation_methodとcustoms_valueの整合性が取れない）
 
 ---
@@ -241,12 +244,12 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 
 #### パスパラメータ
 
-- `code` (string, 必須)  
+- `code` (string, 必須)
   - `"1905.90"` や `"190590"` など
 
 #### クエリパラメータ
 
-- `country` (string, 任意)  
+- `country` (string, 任意)
   - `"US"` 等。ローカルHS（HTSUSなど）を扱う場合。
 
 #### 成功レスポンス 200
@@ -285,11 +288,11 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 
 #### クエリパラメータ
 
-- `q` (string, 任意): 説明文検索キーワード  
-- `chapter` (string, 任意): 章番号（例: `"19"`）  
-- `country` (string, 任意): ローカルHS用  
-- `limit` (integer, 任意, default=20, max=100)  
-- `cursor` (string, 任意): ページング用トークン  
+- `q` (string, 任意): 説明文検索キーワード
+- `chapter` (string, 任意): 章番号（例: `"19"`）
+- `country` (string, 任意): ローカルHS用
+- `limit` (integer, 任意, default=20, max=100)
+- `cursor` (string, 任意): ページング用トークン
 
 #### 成功レスポンス 200
 
@@ -404,8 +407,8 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 }
 ```
 
-- `final_hs_code`: 変更があれば上書き、未指定なら現状維持  
-- `final_source`: `"system" | "manual" | "rule" | "llm"` など  
+- `final_hs_code`: 変更があれば上書き、未指定なら現状維持
+- `final_source`: `"system" | "manual" | "rule" | "llm"` など
 - `duty_rate_override`: Duty Calculation APIの結果からの人手上書き用
   - `DutyRateDetailed` + `additional_duties` を許容
 - `review_required`: 指定時に更新可。未指定なら現状維持。
@@ -417,8 +420,8 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 
 #### エラー
 
-- 404: id不明  
-- 409: 既にロック済み（通関完了など）で更新不可  
+- 404: id不明
+- 409: 既にロック済み（通関完了など）で更新不可
 
 ---
 
@@ -428,20 +431,20 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 
 ### 4.1 モデル概要: HSRule
 
-- `id`: string/UUID  
-- `name`: string  
-- `description`: string  
-- `priority`: integer（小さいほど優先）  
-- `scope`: string（例: `"food"`, `"cosmetic"`）  
-- `condition_dsl`: string（既存DSL/YAML本体）  
-- `effect`: object（`{ "hs_code": "1905.90", "weight": 0.8, "tags": ["baked_goods"] }` 等）  
+- `id`: string/UUID
+- `name`: string
+- `description`: string
+- `priority`: integer（小さいほど優先）
+- `scope`: string（例: `"food"`, `"cosmetic"`）
+- `condition_dsl`: string（既存DSL/YAML本体）
+- `effect`: object（`{ "hs_code": "1905.90", "weight": 0.8, "tags": ["baked_goods"] }` 等）
   - `weight`: 0.0〜1.0 の優先度係数（高いほど優先）
   - 複数マッチ時は `weight` > `priority` > `version` の順で決定
   - 同値の場合は `created_at` が早いものを優先
-- `status`: `"draft" | "active" | "inactive"`  
-- `version`: integer  
-- `created_by`, `updated_by`: string  
-- `created_at`, `updated_at`: datetime  
+- `status`: `"draft" | "active" | "inactive"`
+- `version`: integer
+- `created_by`, `updated_by`: string
+- `created_at`, `updated_at`: datetime
 
 #### condition_dsl 仕様（簡易）
 - 比較: `==`, `!=`, `>`, `>=`, `<`, `<=`
@@ -470,8 +473,8 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 
 #### クエリパラメータ
 
-- `status`: `"draft" | "active" | "inactive"`  
-- `scope`: string  
+- `status`: `"draft" | "active" | "inactive"`
+- `scope`: string
 - `limit` / `cursor`: ページング
 
 #### 成功レスポンス 200
@@ -528,8 +531,8 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 
 ### 4.4 `GET /v1/hs-rules/{id}` / `PUT /v1/hs-rules/{id}` / `DELETE /v1/hs-rules/{id}`
 
-- `GET`: 単一ルール詳細取得  
-- `PUT`: ルールの更新（`condition_dsl` / `effect` 変更時は `version` 自動増加）  
+- `GET`: 単一ルール詳細取得
+- `PUT`: ルールの更新（`condition_dsl` / `effect` 変更時は `version` 自動増加）
 - `DELETE`: 論理削除 or status=`inactive` への遷移（物理削除は避ける）
 
 ---
@@ -651,7 +654,7 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 
 #### エラー
 
-- 404: product_id不明  
+- 404: product_id不明
 - 200 + `hs_classification.status = "pending"`: まだ分類前
 
 #### 鮮度・設定主体
@@ -705,7 +708,7 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 - 本IF仕様の各エンドポイント・モデルは、`openapi.yaml` に以下のように反映する:
   - `paths` に新規パスを追加
   - `components.schemas` に新規スキーマ（DutyRateDetailed, DutyComponent, HSCode, HSRule, HSClassificationReview, ComplianceView など）を追加
-- 既存スキーマ（特に `HSResponse.duty_rate`）は互換性維持のため変更しない  
+- 既存スキーマ（特に `HSResponse.duty_rate`）は互換性維持のため変更しない
   - Duty Calculation APIは新しい詳細スキーマを使用する
 - エラー仕様は既存の `Error400` / `Violation422` を参照する
 
