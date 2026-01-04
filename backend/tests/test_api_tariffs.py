@@ -12,6 +12,8 @@ def test_get_tariff_ok(client, api_key_header):
 def test_get_tariff_not_found(client, api_key_header):
     resp = client.get("/v1/tariffs/US/9999.99", headers=api_key_header)
     assert resp.status_code == 404
+    data = resp.get_json()
+    assert data["error"]["class"] == "not_found"
 
 
 def test_calculate_tariff_ok(client, api_key_header):
@@ -28,3 +30,22 @@ def test_calculate_tariff_ok(client, api_key_header):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["duty"]["total_amount"] == 50.0
+
+
+def test_get_tariff_invalid_hs_code(client, api_key_header):
+    resp = client.get("/v1/tariffs/US/INVALID", headers=api_key_header)
+    assert resp.status_code == 400
+
+
+def test_calculate_tariff_invalid_hs_code(client, api_key_header):
+    resp = client.post(
+        "/v1/tariffs/calculate",
+        json={
+            "hs_code": "INVALID",
+            "origin_country": "JP",
+            "destination_country": "US",
+            "customs_value": {"amount": 1000.0, "currency": "USD"},
+        },
+        headers=api_key_header,
+    )
+    assert resp.status_code == 400

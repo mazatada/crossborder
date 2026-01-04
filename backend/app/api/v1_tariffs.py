@@ -1,5 +1,6 @@
 from typing import Dict, Any, Optional, Tuple
 from flask import Blueprint, request, jsonify, Response
+import re
 from app.auth import require_api_key
 
 bp = Blueprint("v1_tariffs", __name__, url_prefix="/v1")
@@ -52,6 +53,8 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
 
     if not destination_country or len(destination_country) != 2:
         return _error_400("Invalid destination_country", "destination_country")
+    if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", hs_code):
+        return _error_400("Invalid hs_code format", "hs_code")
 
     tariff = _get_tariff(destination_country, hs_code)
     if not tariff:
@@ -76,6 +79,7 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
             "tariff_schedule_version": tariff["tariff_schedule_version"],
             "source": "internal_master",
             "last_updated_at": tariff["last_updated_at"],
+            "note": "origin_country/as_of are accepted but not yet applied (MVP).",
         },
     }
     return jsonify(response), 200
@@ -99,6 +103,8 @@ def calculate_tariff() -> Tuple[Response, int]:
         return _error_400("destination_country is required", "destination_country")
     if not customs_value or "amount" not in customs_value:
         return _error_400("customs_value.amount is required", "customs_value.amount")
+    if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", hs_code):
+        return _error_400("Invalid hs_code format", "hs_code")
 
     tariff = _get_tariff(destination_country, hs_code)
     if not tariff:

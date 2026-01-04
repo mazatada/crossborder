@@ -510,6 +510,9 @@ security: []   # 将来: bearerAuth 等を追加予定
               schema: { $ref: '#/components/schemas/Error400' }
         '404':
           description: 該当する税率が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
 
   /v1/tariffs/calculate:
     post:
@@ -533,3 +536,6 @@ security: []   # 将来: bearerAuth 等を追加予定
               schema: { $ref: '#/components/schemas/Error400' }
         '404':
           description: 税率情報が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
