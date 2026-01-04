@@ -62,6 +62,7 @@
 - Phase C: 外部ソース連携（公式税率表の取り込み）
  - Phase A 実装: `backend/data/tariffs.json` を参照
  - Phase A 運用: `TARIFFS_PATH` でパス指定、`TARIFFS_TTL_SECONDS` で再読込間隔
+ - Phase A 運用: 再読込反映は最大 TTL 秒遅延する
  - Phase A 検証: 必須項目/形式の最小バリデーションを行い、不正データはスキップ
  - Phase A 監査: JSON更新は手動（運用責任者が更新）
 

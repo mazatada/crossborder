@@ -36,7 +36,13 @@ def _load_tariffs() -> Dict[Tuple[str, str], Dict[str, Any]]:
             return _TARIFFS_CACHE
 
     def _validate_item(item: Dict[str, Any]) -> Optional[str]:
-        required = ["destination_country", "hs_code", "ad_valorem_rate"]
+        required = [
+            "destination_country",
+            "hs_code",
+            "ad_valorem_rate",
+            "tariff_schedule_version",
+            "last_updated_at",
+        ]
         for k in required:
             if k not in item:
                 return f"missing {k}"

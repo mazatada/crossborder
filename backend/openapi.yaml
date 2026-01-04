@@ -450,6 +450,17 @@ components:
         ts:      { type: string, format: date-time }
         payload: {}
 
+
+    Error404:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            class:    { type: string, example: "not_found" }
+            message:  { type: string }
+            field:    { type: string }
+            severity: { type: string, example: "block" }
     Error400:
       type: object
       properties:
@@ -512,7 +523,7 @@ security: []   # 将来: bearerAuth 等を追加予定
           description: 該当する税率が存在しない
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error400' }
+              schema: { $ref: '#/components/schemas/Error404' }
 
   /v1/tariffs/calculate:
     post:
@@ -538,4 +549,4 @@ security: []   # 将来: bearerAuth 等を追加予定
           description: 税率情報が存在しない
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/Error400' }
+              schema: { $ref: '#/components/schemas/Error404' }
