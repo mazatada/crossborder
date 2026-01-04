@@ -60,7 +60,10 @@
 - Phase A: 設定ファイル化（YAML/JSON）し、デプロイ時に差し替え可能にする
 - Phase B: DBテーブル化（tariff_rates）し、`as_of`/履歴管理を追加
 - Phase C: 外部ソース連携（公式税率表の取り込み）
-- Phase A 実装: `backend/data/tariffs.json` を参照
+ - Phase A 実装: `backend/data/tariffs.json` を参照
+ - Phase A 運用: `TARIFFS_PATH` でパス指定、`TARIFFS_TTL_SECONDS` で再読込間隔
+ - Phase A 検証: 必須項目/形式の最小バリデーションを行い、不正データはスキップ
+ - Phase A 監査: JSON更新は手動（運用責任者が更新）
 
 - 初期: `ad_valorem_rate` は null を許容（互換期間）
 - 段階1: TariffRateResponse の `duty_rate.ad_valorem_rate` を `hs_code`/`destination_country` から算出

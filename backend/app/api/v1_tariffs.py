@@ -3,6 +3,8 @@ from flask import Blueprint, request, jsonify, Response
 import re
 import os
 import json
+import logging
+import time
 from app.auth import require_api_key
 
 bp = Blueprint("v1_tariffs", __name__, url_prefix="/v1")
@@ -20,11 +22,29 @@ DEFAULT_TARIFFS: Dict[Tuple[str, str], Dict[str, Any]] = {
 
 _TARIFFS_CACHE: Optional[Dict[Tuple[str, str], Dict[str, Any]]] = None
 _TARIFF_SOURCE: str = "internal_master"
+_TARIFFS_LOADED_AT: Optional[float] = None
+_TARIFFS_TTL_SECONDS = int(os.getenv("TARIFFS_TTL_SECONDS", "300"))
+
+logger = logging.getLogger(__name__)
 
 
 def _load_tariffs() -> Dict[Tuple[str, str], Dict[str, Any]]:
     global _TARIFFS_CACHE, _TARIFF_SOURCE
-    if _TARIFFS_CACHE is not None:
+    global _TARIFFS_LOADED_AT
+    if _TARIFFS_CACHE is not None and _TARIFFS_LOADED_AT is not None:
+        if (time.time() - _TARIFFS_LOADED_AT) < _TARIFFS_TTL_SECONDS:
+            return _TARIFFS_CACHE
+
+    def _validate_item(item: Dict[str, Any]) -> Optional[str]:
+        required = ["destination_country", "hs_code", "ad_valorem_rate"]
+        for k in required:
+            if k not in item:
+                return f"missing {k}"
+        if len(item["destination_country"]) != 2:
+            return "invalid destination_country"
+        if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", item["hs_code"]):
+            return "invalid hs_code"
+        return None
         return _TARIFFS_CACHE
 
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -38,6 +58,10 @@ def _load_tariffs() -> Dict[Tuple[str, str], Dict[str, Any]]:
             source = payload.get("source", "internal_master")
             result: Dict[Tuple[str, str], Dict[str, Any]] = {}
             for t in items:
+                err = _validate_item(t)
+                if err:
+                    logger.warning("tariff item skipped: %s (%s)", t, err)
+                    continue
                 key = (t["destination_country"].upper(), _normalize_hs_code(t["hs_code"]))
                 result[key] = {
                     "ad_valorem_rate": t["ad_valorem_rate"],
@@ -49,10 +73,13 @@ def _load_tariffs() -> Dict[Tuple[str, str], Dict[str, Any]]:
                 }
             _TARIFFS_CACHE = result or DEFAULT_TARIFFS
             _TARIFF_SOURCE = source
+            _TARIFFS_LOADED_AT = time.time()
             return _TARIFFS_CACHE
     except Exception:
+        logger.exception("failed to load tariffs json, falling back to defaults")
         _TARIFFS_CACHE = DEFAULT_TARIFFS
         _TARIFF_SOURCE = "internal_master"
+        _TARIFFS_LOADED_AT = time.time()
         return _TARIFFS_CACHE
 
 
