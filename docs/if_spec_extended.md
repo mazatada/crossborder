@@ -37,8 +37,9 @@
 - `ad_valorem_rate` を正とする（小数表現）
 - 互換のため `ad_valorem_pct` は移行期間のみ返却可
   - 返却時は `ad_valorem_rate` を必須、`ad_valorem_pct` は任意
+- 相互制約: `ad_valorem_pct` は `ad_valorem_rate * 100` と一致必須
   - 受信時に両方が指定された場合は一致必須（例: 0.05 と 5.0）
-- 移行期間の終了後は `ad_valorem_pct` を廃止予定（期限はIssueで管理）
+- 移行期間の終了後は `ad_valorem_pct` を廃止予定（次期メジャーで削除予定）
 
 
 ---
@@ -389,6 +390,7 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 - `duty_rate_override`: Duty Calculation APIの結果からの人手上書き用
   - `DutyRateDetailed` + `additional_duties` を許容
 - `review_required`: 指定時に更新可。未指定なら現状維持。
+- override優先: duty_rate_override が指定された場合、`duty_rate` より優先される。
 
 #### 成功レスポンス 200
 
