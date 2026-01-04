@@ -198,7 +198,13 @@ components:
         duty_rate:
           type: object
           properties:
-            ad_valorem_pct: { type: number }
+            ad_valorem_rate:
+              type: number
+              description: "0.05 = 5%"
+            ad_valorem_pct:
+              type: number
+              deprecated: true
+              description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100."
             additional:     { type: array, items: { type: string } }
         risk_flags:
           type: object
