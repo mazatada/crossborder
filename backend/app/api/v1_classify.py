@@ -280,7 +280,11 @@ def classify_hs() -> Tuple[Response, int]:
         response = {
             "hs_candidates": result["hs_candidates"],
             "final_hs_code": result["final_hs_code"],
-            "duty_rate": {"ad_valorem_pct": None, "additional": []},
+            "duty_rate": {
+                "ad_valorem_rate": None,
+                "ad_valorem_pct": None,  # backward-compatibility (deprecated)
+                "additional": [],
+            },
             "risk_flags": {"ad_cvd": False, "import_alert": False},
             "quota_applicability": None,
             "review_required": result["review_required"],

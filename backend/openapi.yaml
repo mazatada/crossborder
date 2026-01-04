@@ -202,9 +202,11 @@ components:
           properties:
             ad_valorem_rate:
               type: number
+              nullable: true
               description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
             ad_valorem_pct:
               type: number
+              nullable: true
               deprecated: true
               description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal in next major version."
             additional:     { type: array, items: { type: string }, description: "Compatibility field; AdditionalDuty[] planned in next major with ad_valorem_pct removal." }
