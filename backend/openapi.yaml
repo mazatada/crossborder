@@ -17,6 +17,7 @@ tags:
   - name: Jobs
   - name: Audit
   - name: Media
+  - name: Tariffs
 
 paths:
   /v1/health:
@@ -171,6 +172,166 @@ paths:
 
 components:
   schemas:
+    Money:
+      type: object
+      properties:
+        amount: { type: number, format: float }
+        currency: { type: string }
+      required: [amount, currency]
+
+    DutyComponent:
+      type: object
+      properties:
+        type:
+          type: string
+          description: "basic, section301, safeguard, anti_dumping, countervailing など"
+        rate_type:
+          type: string
+          enum: [ad_valorem, specific]
+        rate:
+          type: number
+          format: float
+          description: "0.05 = 5%"
+        amount:
+          type: number
+          format: float
+          description: "計算済み金額"
+        basis:
+          type: string
+          description: "customs_value, quantity など"
+
+    AdditionalDuty:
+      type: object
+      required: [type, rate_type, rate, basis]
+      properties:
+        type:
+          type: string
+          enum: [section301, safeguard, anti_dumping, countervailing]
+        rate_type:
+          type: string
+          enum: [ad_valorem, specific]
+        rate:
+          type: number
+          format: float
+          description: "0.075 = 7.5%"
+        amount:
+          type: number
+          format: float
+          nullable: true
+        basis:
+          type: string
+          enum: [customs_value, quantity]
+
+    TariffRate:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ad_valorem, specific, mixed]
+        ad_valorem_rate:
+          type: number
+          format: float
+          description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
+        ad_valorem_pct:
+          type: number
+          deprecated: true
+          description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal in next major version."
+        specific:
+          type: number
+          format: float
+        currency:
+          type: string
+        basis_uom:
+          type: string
+
+    TariffRateResponse:
+      type: object
+      properties:
+        destination_country: { type: string }
+        hs_code: { type: string }
+        origin_country: { type: string, nullable: true }
+        as_of: { type: string, format: date }
+        duty_rate:
+          $ref: '#/components/schemas/TariffRate'
+        additional_duties:
+          type: array
+          description: "Additional duties are returned at response level; base duty_rate excludes them."
+          items:
+            $ref: '#/components/schemas/AdditionalDuty'
+        metadata:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            source: { type: string }
+            last_updated_at: { type: string, format: date-time }
+
+    TariffCalculationRequest:
+      type: object
+      required: [hs_code, origin_country, destination_country, customs_value]
+      properties:
+        hs_code: { type: string }
+        origin_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        destination_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: number
+          format: float
+        uom:
+          type: string
+        valuation_method:
+          type: string
+          enum: [FOB, CIF, EXW]
+        declaration_date:
+          type: string
+          format: date
+        options:
+          type: object
+          properties:
+            apply_preferential_if_available:
+              type: boolean
+              default: true
+            rounding_mode:
+              type: string
+              enum: [standard, floor, ceil]
+              default: standard
+
+    TariffCalculationResponse:
+      type: object
+      properties:
+        hs_code: { type: string }
+        origin_country: { type: string }
+        destination_country: { type: string }
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        duty:
+          type: object
+          properties:
+            total_amount:
+              type: number
+              format: float
+            currency:
+              type: string
+            components:
+              type: array
+              items:
+                $ref: '#/components/schemas/DutyComponent'
+        applied_rates:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            rules:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string }
+                  description: { type: string }
+                  legal_reference: { type: string }
     HSRequest:
       type: object
       required: [product]
@@ -315,3 +476,60 @@ components:
               message: { type: string }
 
 security: []   # 将来: bearerAuth 等を追加予定
+  /v1/tariffs/{destination_country}/{hs_code}:
+    get:
+      tags: [Tariffs]
+      summary: 関税率取得
+      parameters:
+        - in: path
+          name: destination_country
+          required: true
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: path
+          name: hs_code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: origin_country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: as_of
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 関税率情報
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffRateResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 該当する税率が存在しない
+
+  /v1/tariffs/calculate:
+    post:
+      tags: [Tariffs]
+      summary: 関税額計算
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TariffCalculationRequest' }
+      responses:
+        '200':
+          description: 関税額と内訳
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffCalculationResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 税率情報が存在しない
