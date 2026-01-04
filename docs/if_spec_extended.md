@@ -2,6 +2,7 @@
 
 対象: Duty Calculation / HS Code Master / HS Classification Review / HS Rule Management / Product Compliance  
 前提: 既存 `openapi.yaml` / `SPEC.md` に準拠し、後方互換を維持した上での追加APIである。
+参照: `backend/openapi.yaml` / `docs/spec/SPEC.md`
 
 ---
 
@@ -23,6 +24,22 @@
 - 重要な変更操作（HS分類レビュー更新、ルールCRUD）は `audit_event` に記録  
   - event: `"hs.review.update"`, `"hs.rule.create"` など
   - actor: APIキー起点（operator/customs/law などのRBACは将来拡張）
+
+### 0.3 日付・日時フォーマット
+
+- 日付: `YYYY-MM-DD`  
+- 日時: ISO 8601（UTC, `Z` サフィックス）
+
+
+---
+### 0.4 互換性・移行ポリシー
+
+- `ad_valorem_rate` を正とする（小数表現）
+- 互換のため `ad_valorem_pct` は移行期間のみ返却可
+  - 返却時は `ad_valorem_rate` を必須、`ad_valorem_pct` は任意
+  - 受信時に両方が指定された場合は一致必須（例: 0.05 と 5.0）
+- 移行期間の終了後は `ad_valorem_pct` を廃止予定（期限はIssueで管理）
+
 
 ---
 
@@ -59,7 +76,7 @@
   "as_of": "2025-12-06",
   "duty_rate": {
     "type": "ad_valorem",
-    "ad_valorem_pct": 5.0,
+    "ad_valorem_rate": 0.05,
     "specific": null,
     "currency": "USD",
     "basis_uom": null
@@ -83,8 +100,9 @@
 
 #### 主なフィールド仕様
 
-- `duty_rate.type`: `"ad_valorem" | "specific | "mixed"`  
-- `duty_rate.ad_valorem_pct`: 関税率（百分率、5.0 は 5%）  
+- `duty_rate.type`: "ad_valorem" | "specific" | "mixed"  
+- `duty_rate.ad_valorem_rate`: 関税率（小数、0.05 は 5%）  
+- **移行**: `ad_valorem_pct` は互換期間のみ（5.0は5%）  
 - `duty_rate.specific`: 従量税額（1単位あたり）  
 - `additional_duties[]`:
   - `type`: `"section301"`, `"safeguard"`, `"anti_dumping"`, `"countervailing"` など
@@ -314,8 +332,11 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
   "final_hs_code": "1905.90",
   "final_source": "system",
   "duty_rate": {
-    "ad_valorem_pct": null,
-    "additional": []
+    "type": "ad_valorem",
+    "ad_valorem_rate": 0.05,
+    "specific": null,
+    "currency": "USD",
+    "basis_uom": null
   },
   "risk_flags": [
     {
@@ -348,7 +369,7 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
   "final_hs_code": "1905.90",
   "final_source": "manual",
   "duty_rate_override": {
-    "ad_valorem_pct": 5.0,
+    "ad_valorem_rate": 0.05,
     "additional": [
       {
         "type": "section301",
@@ -366,6 +387,8 @@ HSコード定義（説明・デフォルトUoMなど）の参照と検索API。
 - `final_hs_code`: 変更があれば上書き、未指定なら現状維持  
 - `final_source`: `"system" | "manual" | "rule" | "llm"` など  
 - `duty_rate_override`: Duty Calculation APIの結果からの人手上書き用
+  - `DutyRateDetailed` + `additional_duties` を許容
+- `review_required`: 指定時に更新可。未指定なら現状維持。
 
 #### 成功レスポンス 200
 
@@ -391,10 +414,30 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 - `scope`: string（例: `"food"`, `"cosmetic"`）  
 - `condition_dsl`: string（既存DSL/YAML本体）  
 - `effect`: object（`{ "hs_code": "1905.90", "weight": 0.8, "tags": ["baked_goods"] }` 等）  
+  - `weight`: 0.0〜1.0 の優先度係数（高いほど優先）
+  - 複数マッチ時は `weight` > `priority` > `version` の順で決定
+  - 同値の場合は `created_at` が早いものを優先
 - `status`: `"draft" | "active" | "inactive"`  
 - `version`: integer  
 - `created_by`, `updated_by`: string  
 - `created_at`, `updated_at`: datetime  
+
+#### condition_dsl 仕様（簡易）
+- 比較: `==`, `!=`, `>`, `>=`, `<`, `<=`
+- 論理: `and`, `or`, `not`
+- 代表的な関数: `ingredient.contains("wheat")`, `pct("wheat") >= 30`
+- 例: `ingredient.contains("wheat flour") and wheat_pct >= 30 and is_baked == true`
+
+
+#### condition_dsl 仕様（利用可能なフィールド）
+- `product.name`: string
+- `product.category`: string
+- `product.origin_country`: string (ISO 3166-1 alpha-2)
+- `ingredients[].name`: string
+- `ingredients[].pct`: number
+- `process[].name`: string
+- `is_baked`: boolean（プロセス推定フラグ）
+
 
 ---
 
@@ -548,6 +591,7 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
     "final_hs_code": "1905.90",
     "final_source": "manual",
     "review_required": false,
+    "status": "classified",
     "reviewed_by": "tsukan-shi_001",
     "reviewed_at": "2025-12-06T02:00:00Z",
     "risk_flags": [
@@ -587,11 +631,55 @@ YAMLファイルで管理していたHS分類ルールをDB管理へ移し、API
 #### エラー
 
 - 404: product_id不明  
-- 200 + `hs_classification = null` / `status="pending"`: まだ分類前
+- 200 + `hs_classification.status = "pending"`: まだ分類前
+
+#### 鮮度・設定主体
+- `hs_classification`: 最新の `hs_classifications` レコード由来
+- `duty`: 直近計算結果（または最終計算時点のスナップショット）
+- `docs`: `/v1/docs/clearance-pack` と `/v1/fda/prior-notice` のジョブ結果由来
+
+
+#### docs フィールドの扱い
+- `docs.*` はシステム管理の読み取り専用。クライアントからの更新不可。
+
+
+#### 更新トリガー
+- `hs_classification`: `/v1/classify/hs` 完了時、またはレビュー更新（PUT）時
+- `duty`: `/v1/tariffs/calculate` 実行時、または `duty_rate_override` 更新時
+- `docs`: clearance-pack / prior-notice のジョブ完了時
+
 
 ---
 
-## 6. OpenAPIへの反映方針
+## 6. モデル定義（再利用前提）
+
+### DutyRateDetailed
+- `type`: "ad_valorem" | "specific" | "mixed"
+- `ad_valorem_rate`: number（小数、0.05 = 5%）
+- `specific`: number | null（従量税額）
+- `currency`: string | null
+- `basis_uom`: string | null
+
+### AdditionalDuty
+- `type`: "section301" | "safeguard" | "anti_dumping" | "countervailing"
+- `rate_type`: "ad_valorem" | "specific"
+- `rate`: number（小数、0.075 = 7.5%）
+- `amount`: number | null
+- `basis`: "customs_value" | "quantity"
+
+### DutyRateOverride
+- `duty_rate`: `DutyRateDetailed`
+- `additional_duties`: `AdditionalDuty[]`
+
+### HSClassificationReview
+- `duty_rate`: `DutyRateDetailed` を参照
+- `review_required`: boolean
+
+### ComplianceView
+- `hs_classification.status`: "pending" | "classified" | "reviewed"
+- `docs.*`: ジョブ結果由来（変更主体はシステム）
+
+## 7. OpenAPIへの反映方針
 
 - 本IF仕様の各エンドポイント・モデルは、`openapi.yaml` に以下のように反映する:
   - `paths` に新規パスを追加
