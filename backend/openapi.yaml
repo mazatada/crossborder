@@ -4,6 +4,7 @@ info:
   version: 1.0.0
   description: >
     越境EC業務の法規対応自動化API（MVP）。ジョブ基盤・監査・メディア配布を含む。
+OpenAPI versioning: backward-compatible changes only in minor; breaking changes only in major.
 servers:
   - url: http://localhost:5001
     description: Local Dev
@@ -197,15 +198,16 @@ components:
               required_uom:  { type: string }
         duty_rate:
           type: object
+          required: [ad_valorem_rate, additional]
           properties:
             ad_valorem_rate:
               type: number
-              description: "0.05 = 5%"
+              description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
             ad_valorem_pct:
               type: number
               deprecated: true
-              description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100."
-            additional:     { type: array, items: { type: string } }
+              description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal in next major version."
+            additional:     { type: array, items: { type: string }, description: "Compatibility field; AdditionalDuty[] planned in next major with ad_valorem_pct removal." }
         risk_flags:
           type: object
           properties:

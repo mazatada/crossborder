@@ -7,7 +7,7 @@ export type HSRuleHit = {
 export type HSResponse = {
 	hs_candidates: HSRuleHit[];
 	duty_rate: {
-		ad_valorem_rate: number;
+		ad_valorem_rate?: number;
 		ad_valorem_pct?: number;
 		additional: string[];
 	};
