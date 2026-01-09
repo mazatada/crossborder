@@ -39,7 +39,19 @@ def get_compliance(product_id: str) -> Tuple[Response, int]:
         .first()
     )
     if record is None:
-        return jsonify({"error": {"class": "not_found"}}), 404
+        return (
+            jsonify(
+                {
+                    "error": {
+                        "class": "not_found",
+                        "message": "not found",
+                        "field": "product_id",
+                        "severity": "block",
+                    }
+                }
+            ),
+            404,
+        )
 
     docs_job = (
         db.session.query(Job)

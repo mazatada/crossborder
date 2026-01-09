@@ -11,7 +11,19 @@ bp = Blueprint("v1_hs_review", __name__, url_prefix="/v1")
 
 
 def _error_404() -> Tuple[Response, int]:
-    return jsonify({"error": {"class": "not_found"}}), 404
+    return (
+        jsonify(
+            {
+                "error": {
+                    "class": "not_found",
+                    "message": "not found",
+                    "field": "id",
+                    "severity": "block",
+                }
+            }
+        ),
+        404,
+    )
 
 
 def _risk_flags_to_array(risk_flags: Any) -> List[Dict[str, Any]]:

@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from flask import Blueprint, jsonify, request, Response
 from app.auth import require_api_key
 from app.rules.engine import RuleEngine, RuleValidationError, RuleValidator
+from app.audit import log_event
 
 bp = Blueprint("v1_hs_rules", __name__, url_prefix="/v1")
 
@@ -34,6 +35,22 @@ def _error_400(message: str, field: str, error_class: str = "invalid_argument") 
     )
 
 
+def _error_404(message: str = "not found", field: str = "id") -> Tuple[Response, int]:
+    return (
+        jsonify(
+            {
+                "error": {
+                    "class": "not_found",
+                    "message": message,
+                    "field": field,
+                    "severity": "block",
+                }
+            }
+        ),
+        404,
+    )
+
+
 def _error_rule_dsl(
     message: str,
     expression: str,
@@ -57,6 +74,12 @@ def _error_rule_dsl(
 
 def _error_500(message: str) -> Tuple[Response, int]:
     return jsonify({"error": {"class": "internal", "message": message}}), 500
+
+
+def _trace_id(data: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    if data and data.get("trace_id"):
+        return data.get("trace_id")
+    return request.headers.get("X-Trace-ID")
 
 
 def _parse_and_validate_conditions(
@@ -193,6 +216,13 @@ def create_hs_rule() -> Tuple[Response, int]:
         "updated_at": _now_iso(),
     }
     _RULES_CACHE[rule_id] = rule
+    log_event(
+        trace_id=_trace_id(data),
+        event="hs.rule.create",
+        target_type="hs_rule",
+        target_id=None,
+        rule_id=rule_id,
+    )
     return jsonify(rule), 201
 
 
@@ -204,7 +234,7 @@ def get_hs_rule(id: str) -> Tuple[Response, int]:
         return error
     rule = _get_rule(id)
     if not rule:
-        return jsonify({"error": {"class": "not_found"}}), 404
+        return _error_404()
     return jsonify(rule), 200
 
 
@@ -216,7 +246,7 @@ def update_hs_rule(id: str) -> Tuple[Response, int]:
         return error
     rule = _get_rule(id)
     if not rule:
-        return jsonify({"error": {"class": "not_found"}}), 404
+        return _error_404()
 
     data = request.get_json(silent=True) or {}
     version_bump_fields = {"condition_dsl", "effect", "priority", "scope"}
@@ -241,6 +271,13 @@ def update_hs_rule(id: str) -> Tuple[Response, int]:
     if bump:
         rule["version"] = int(rule.get("version", 1)) + 1
 
+    log_event(
+        trace_id=_trace_id(data),
+        event="hs.rule.update",
+        target_type="hs_rule",
+        target_id=None,
+        rule_id=id,
+    )
     return jsonify(rule), 200
 
 
@@ -252,9 +289,16 @@ def delete_hs_rule(id: str) -> Tuple[Response, int]:
         return error
     rule = _get_rule(id)
     if not rule:
-        return jsonify({"error": {"class": "not_found"}}), 404
+        return _error_404()
     rule["status"] = "inactive"
     rule["updated_at"] = _now_iso()
+    log_event(
+        trace_id=_trace_id(),
+        event="hs.rule.delete",
+        target_type="hs_rule",
+        target_id=None,
+        rule_id=id,
+    )
     return Response(status=204)
 
 
@@ -292,20 +336,11 @@ def test_hs_rule() -> Tuple[Response, int]:
     try:
         matched = engine._evaluate_rule(rule_obj, product_sample)
     except Exception as e:
-        return (
-            jsonify(
-                {
-                    "error": {
-                        "class": "rule_dsl_error",
-                        "message": str(e),
-                        "details": {
-                            "expression": condition_dsl,
-                            "hint": "Check predicate names and arguments",
-                        },
-                    }
-                }
-            ),
-            400,
+        return _error_rule_dsl(
+            str(e),
+            condition_dsl,
+            "rule.condition_dsl",
+            {"hint": "Check predicate names and arguments"},
         )
 
     return (
