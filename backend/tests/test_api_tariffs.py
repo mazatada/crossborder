@@ -23,6 +23,8 @@ def test_get_tariff_invalid_origin_country(client, api_key_header):
         headers=api_key_header,
     )
     assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["class"] == "invalid_format"
 
 
 def test_get_tariff_invalid_as_of(client, api_key_header):
@@ -31,6 +33,8 @@ def test_get_tariff_invalid_as_of(client, api_key_header):
         headers=api_key_header,
     )
     assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["class"] == "invalid_format"
 
 
 def test_get_tariff_not_found(client, api_key_header):
@@ -59,6 +63,8 @@ def test_calculate_tariff_ok(client, api_key_header):
 def test_get_tariff_invalid_hs_code(client, api_key_header):
     resp = client.get("/v1/tariffs/US/INVALID", headers=api_key_header)
     assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["class"] == "invalid_format"
 
 
 def test_calculate_tariff_invalid_hs_code(client, api_key_header):
@@ -73,3 +79,20 @@ def test_calculate_tariff_invalid_hs_code(client, api_key_header):
         headers=api_key_header,
     )
     assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["class"] == "invalid_format"
+
+
+def test_calculate_tariff_missing_required(client, api_key_header):
+    resp = client.post(
+        "/v1/tariffs/calculate",
+        json={
+            "origin_country": "JP",
+            "destination_country": "US",
+            "customs_value": {"amount": 1000.0, "currency": "USD"},
+        },
+        headers=api_key_header,
+    )
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["class"] == "missing_required"

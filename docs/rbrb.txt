@@ -1,94 +1,168 @@
+@if_spec_extended.md
 ---
-並行実行の制御が欠落しています。
-複数のデプロイメントが同時に実行される可能性があり、特に本番環境では危険です。concurrencyグループを追加して、同じ環境への同時デプロイを防止してください。
- jobs:
-   deploy:
-     runs-on: ubuntu-latest
-     timeout-minutes: 30
-     environment: ${{ github.event.inputs.environment || 'staging' }}
-+    concurrency:
-+      group: deploy-${{ github.event.inputs.environment || 'staging' }}
-+      cancel-in-progress: false
----
-:latestタグの使用は避け、セキュリティスキャンを追加してください
+・ドキュメント全体の構成と記載内容の一貫性を確認してください。
 
-以下の懸念事項があります：
-1:latestタグの使用：:latestタグは本番環境でのデプロイメントにおけるアンチパターンです。ロールバックが困難になり、どのバージョンがデプロイされているか不明確になります。環境固有のタグ（例：staging-${{ github.sha }}、production-v1.2.3）を使用することを推奨します。
+このドキュメントは5つの主要なAPIモジュールを定義する重要な仕様であり、以下の改善をお勧めします：
 
-2:セキュリティスキャンの欠如：イメージをプッシュする前に脆弱性スキャンを実行するステップがありません。本番環境にデプロイする前にセキュリティチェックを追加することを強く推奨します。
+スキーマ定義の集約：
 
-       - name: Build and push backend image
-         uses: docker/build-push-action@v5
-         with:
-           context: ./backend
-           push: true
-           tags: |
--            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
--            ${{ secrets.REGISTRY_URL }}/crossborder-backend:latest
-+            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
-+            ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ inputs.environment || 'staging' }}-${{ github.sha }}
-           cache-from: type=gha
-           cache-to: type=gha,mode=max
-       
-+      - name: Scan Docker image for vulnerabilities
-+        uses: aquasecurity/trivy-action@master
-+        with:
-+          image-ref: ${{ secrets.REGISTRY_URL }}/crossborder-backend:${{ github.sha }}
-+          format: 'sarif'
-+          output: 'trivy-results.sarif'
-+
-+      - name: Upload Trivy results to GitHub Security
-+        uses: github/codeql-action/upload-sarif@v2
-+        if: always()
-+        with:
-+          sarif_file: 'trivy-results.sarif'
-+
-       - name: Run database migrations
----
-マイグレーション実行のタイミングに問題があります。
+各セクションで複数のデータ型が登場しますが（DutyRateDetailed, HSRule, ComplianceView など）、Section 6の前に「モデル定義」セクションを追加して、すべての新規スキーマを形式的に定義することをお勧めします
+フォーマット仕様の統一：
 
-現在の構成では、マイグレーションがデプロイメント前に実行されようとしていますが、コメント例のdocker compose exec backend alembic upgrade headは実行中のコンテナが必要です。これは以下のいずれかの方法で解決する必要があります：
+関税率値：パーセンテージ vs 小数表現の統一が必要（後述のコメント参照）
+日時：YYYY-MM-DD と ISO 8601 Timestamp の使い分けをタイムゾーン含めて明確化
+API設計パターンの一貫性：
 
-1:マイグレーションをコンテナの起動プロセスに組み込む
-2:デプロイメント後にマイグレーションを実行する
-3:デプロイされたエンドポイント経由でマイグレーションをトリガーする
-現在の順序では、マイグレーションが正常に実行されません。
----
-デプロイメントロジックの実装が必要です
+ページング：すべてのリスト操作でカーソルベース + has_more / next_cursor = null の一貫性を確認
 
-デプロイメントステップがプレースホルダーのままです。これはワークフローの中核となる機能であり、実装が必須です。実際のデプロイメント方法（Docker Compose、Kubernetes、ECS、その他のオーケストレーションツール）に基づいて実装してください。
----
-ヘルスチェックの実装が推奨されます
+・監査対象操作の範囲を明確に定義する必要があります。
 
-ヘルスチェックステップがプレースホルダーのままです。デプロイメント後にサービスが正常に起動したことを確認するヘルスチェックは、信頼性の高いデプロイメントに不可欠です。実装せずにデプロイを進めると、サービスが実際には起動していない、または正常に動作していない場合でもデプロイメントが成功したと判断される可能性があります。
+Line 23で「重要な変更操作」と記載されていますが、どのエンドポイント・操作が該当するのか具体的リストがありません。実装者が一貫した監査ログを記録できるよう、セクション1～5の各APIごとに監査対象・非対象を明示してください。
 
-       - name: Health check
-         run: |
--          # Wait for service to be healthy
--          echo "Checking service health..."
--          # curl -f http://your-service-url/v1/health || exit 1
-+          echo "Waiting for service to be ready..."
-+          for i in {1..30}; do
-+            if curl -f ${{ secrets.SERVICE_URL }}/v1/health > /dev/null 2>&1; then
-+              echo "Service is healthy!"
-+              exit 0
-+            fi
-+            echo "Attempt $i: Service not ready yet..."
-+            sleep 10
-+          done
-+          echo "Health check failed after 5 minutes"
-+          exit 1
----
-ロールバック戦略が不完全です。
+・ad_valorem_rate/pct互換性バリデーションの厳密な仕様が必要です。
 
-現在のロールバックロジックには以下の問題があります：
+Line 40で「ad_valorem_pct は ad_valorem_rate * 100 と一致必須」と規定していますが、浮動小数点演算による丸め誤差の許容範囲が未定義です。例えば、ad_valorem_rate: 0.05 と ad_valorem_pct: 5.0 が送信された場合の許容誤差（例: ±0.001%）、および検証失敗時のエラー形式（422レスポンスの具体例）を定義してください。また、Line 42の「次期メジャーで削除」のタイムラインも明記してください。
 
-1:どのイメージバージョンにロールバックするかが指定されていない
-2:データベースマイグレーションのロールバックが考慮されていない（複雑で多くの場合不可能）
-3:単なる再作成ではなく、既知の正常なイメージタグをプルして使用すべき
-実装時には、以下を考慮してください：
+・段階導入計画のタイムラインと検証基準を明確化してください。
 
-前回の正常なデプロイメントのSHAまたはタグを記録する
-データベーススキーマの下位互換性を維持する
-ブルーグリーンデプロイメントなど、より堅牢なデプロイ戦略を検討する
----
+Lines 48-54で、Duty Rateの段階導入を「初期 → 段階1 → 段階2 → 段階3」と定義していますが、各段階への遷移時期、検証基準、ロールバック計画が記載されていません。段階1でad_valorem_rateを算出開始する際の移行日程と、既存クライアントの互換性確認手順を明確にしてください。
+
+・JSON正規表現のエスケープが不正です。
+
+Line 43の正規表現パターンが無効なJSON形式です。バックスラッシュはJSONで転義が必要です：
+
+"^\\d{4}(\\.\\d{2}){0,2}$"
+またはドット入り・ドットなし両形式の受け入れについて、バリデーションロジック側で柔軟に処理する方法を明確にしてください。
+
+・duty_rate vs duty のレスポンス構造を統一してください
+
+GET /v1/tariffs/{...} は行 67-72 で単純な duty_rate オブジェクトを返し、POST /v1/tariffs/calculate は行 155-173 で詳細な duty オブジェクト（components 配列含む）を返しています。モデルの統一性と再利用性の観点から、第 6 章で定義する DutyRateDetailed モデルを両エンドポイントで一貫して使用するか、または命名規則と用途を明確に区別してください。
+
+Also applies to: 155-173
+
+・修正：duty_rate.typeの構文エラーと数値形式の矛盾。
+
+2つの問題があります：
+
+構文エラー（行86）："ad_valorem" | "specific | "mixed" の"specificが閉じられていません。
+
+数値形式の矛盾：
+
+duty_rate.ad_valorem_pct: 5.0（パーセンテージ値）
+duty.components[].rate: 0.05（小数値）
+仕様全体で統一してください。パーセンテージ値（5.0）に統一するか、小数値（0.05）に統一するかを決定し、すべてのレスポンス例と説明を更新してください。
+
+- `duty_rate.type`: `"ad_valorem" | "specific | "mixed"`
++ `duty_rate.type`: `"ad_valorem" | "specific" | "mixed"`
+数値形式については、小数値（0.05）に統一することをお勧めします（国際標準に準拠）。その場合、60行目を以下のように修正してください：
+
+- "ad_valorem_pct": 5.0,
++ "ad_valorem_rate": 0.05,
+
+・hs_candidates配列のソート順序と優先度アルゴリズムが未定義です。
+
+複数の候補がある場合、confidenceスコアで自動的にソートされるのか、それとも優先度の定義順か、説明がありません。また、同一confidenceの候補が存在した場合のタイブレーク基準（created_at順など）を明記してください。この情報は、UI表示順序とシステム動作の予測可能性に影響します。
+
+・HS分類レビューレスポンスのduty_rateスキーマを明確化してください。
+
+2つの矛盾があります：
+
+スキーマの二重定義：Section 1のDuty Calculation APIは詳細なduty_rate構造を定義していますが、Section 3のレスポンス（行316-318）は簡略版です。どちらを使用するのか、またはいつ使い分けるのかを明記してください。
+
+review_requiredフィールドの意味が不明確：
+
+行327: review_required: true で返されます
+行350-360（PUT）: duty_rate_override で関税情報を上書きできます
+しかし、review_required を上書きできるかが不明確です。行366で「未指定なら現状維持」と書かれていますが、review_required が対象に含まれるのか明記してください
+
+・duty_rate_override.additional の構造を第 1 章と統一してください
+
+行 362-367 の additional 配列の要素構造が、第 1.1 節の additional_duties （line 74-82）とやや異なって見えます。型定義、必須 vs 任意フィールド、rate 計算方式などを明確にし、DutyRateDetailed または専用の DutyComponent モデルへの参照を追加してください。
+
+・duty_rateとduty_rate_overrideの応答構造と優先度ロジックが曖昧です。
+
+Line 343はduty_rateフィールドをGET応答に含めていますが、Line 401で「duty_rate_overrideが指定された場合、duty_rateより優先される」と述べています。以下の点を明確にしてください:
+
+PUT更新後のGET応答で、duty_rateとduty_rate_overrideの両方を返すのか、それとも優先されたものだけを返すのか
+クライアントがduty_rate_overrideを解除したい場合、nullを指定するのか、または別のメカニズムがあるのか
+duty_rate_overrideのadditional_duties配列が、既存のduty_rateのadditional_dutiesと重複した場合の統合ロジック
+
+・HSRuleモデルのeffectフィールドとDSL仕様を完全に定義してください。
+
+2つの重要な定義が不足しています：
+
+effect オブジェクトの仕様（行393）：
+
+例では { "hs_code": "1905.90", "weight": 0.8, "tags": [...] } となっていますが、weight: 0.8 の意味が不明確です（信頼度？優先度？）
+どのフィールドが必須で、どれがオプションか明記してください
+複数ルールがマッチした場合、weight の値で結合ロジックどう動作するのか説明してください
+condition_dsl 仕様の欠落：
+
+行392と449に例がありますが、正式なDSL文法が定義されていません
+「既存DSL/YAML本体」への参照だけでは、新たな実装者が仕様を理解できません
+別ドキュメント参照なのか、このドキュメントに含めるべきなのか明確にしてください
+
+・condition_dsl言語仕様が形式的に定義されていません。
+
+Lines 435-450でDSL例示がされていますが、以下が欠落しています:
+
+ingredient.contains()、pct()等の関数シグネチャと型情報
+関数の戻り値型（boolean vs. number）と評価順序
+is_bakedフラグの算出ロジック（どのプロセスが「ベイク」判定か）
+利用可能な関数の網羅的リスト（現在は代表例のみ）
+文字列エスケープ規則（ingredient.contains("wheat flour") での引用符の扱い）
+YAML/JSON内に正規表現パターンやBNF文法を追加してください。
+
+・HSRule CRUD操作の設計に曖昧性があります。
+
+Line 468-469: DELETE操作が「論理削除 or status=inactive」と両義的です。DELETE実行時の実際の動作を明確にしてください（物理削除しない場合、DELETEレスポンスは200?204?）
+
+version自動増加の条件（「condition_dsl / effect変更時」のみ）が限定的です。description変更時はversionを増加させないのかを明確にしてください
+
+status値の状態遷移ルール（draft→active→inactive→？）がありません。どの遷移が許可されるのか、誰が遷移を実行できるのか定義してください
+
+・product_sample スキーマを第 6 章で正式定義してください
+
+POST /v1/hs-rules:test のリクエスト例（行 513-521）では product_sample が軽量な構造（name, ingredients, category）ですが、実装時には ingredients 配列内の各要素の型、必須フィールド、拡張属性などが不明確です。第 6 章 "モデル定義" に ProductSample スキーマを追加し、以下を定義してください:
+
+ingredients[].pct の型と単位（百分率? 0-100 vs 0-1?）
+category の許容値（列挙 vs 自由テキスト）
+拡張属性の扱い（カスタムフィールド許可?）
+これにより、クライアント/テストツールの実装が容易になります。
+
+・エラースキーマ"rule_dsl_error"が正式に定義されていません。
+
+Line 576でerror.class="rule_dsl_error"が参照されていますが、このエラーコードが「0. 共通前提」のError400/Violation422スキーマに含まれるかどうかが不明です。DSL構文エラーの詳細（行番号、エラー位置、提案など）を含む、専用のエラースキーマ定義をLine 15-19の既存エラー形式に追加してください。
+
+・Product Compliance集約エンドポイントの設計と仕様の明確化。
+
+3つの問題があります：
+
+エンドポイント設計の意図が不明確：
+
+このエンドポイントは、他のAPIの結果をリアルタイムに集約する（遅延・キャッシュの可能性）のか、または事前集計済みのビューなのか？
+各フィールド（hs_classification, duty, docs）の鮮度（freshness）と一貫性の保証を明記してください
+docs フィールドの定義不足：
+
+Lines 574-578: clearance_pack_job_id, clearance_pack_status など、外部システムとの連携が暗示されていますが、API定義がありません
+これらは誰が設定するのか（別API？別システム？）、また変更可能か明記してください
+分類待ちステータスの処理（Line 590）：
+
+・参照されているエンドポイントが定義されていません。
+
+Lines 657-659で、以下のエンドポイントがトリガーとして参照されていますが、仕様内に定義がありません:
+
+/v1/classify/hs (HS自動分類エンドポイント)
+また、Line 649で参照される以下のエンドポイントも未定義です:
+
+/v1/docs/clearance-pack
+/v1/fda/prior-notice
+これらの仕様を本文書に含めるか、別ドキュメント（SPEC.mdなど）への明示的な参照を追加してください。
+
+・OpenAPI統合ガイダンスが不完全です。
+
+Line 599-600: 既存 HSResponse.duty_rate との互換性維持を謳いながら、セクション1で新しい詳細スキーマが導入されています。OpenAPI/yamlでの明確なマッピング例を示してください（例：どのエンドポイントが新スキーマを使うのか）
+
+Line 601: Error400 / Violation422 スキーマを参照していますが、これらの定義が本ドキュメントに含まれていません。スキーマ定義を追加するか、外部ドキュメントへの明確なリンクを記載してください
+
+将来、仕様が変わり後方互換性が破れた場合のバージョニング戦略が記載されていません。apiバージョン更新ポリシーを追加してください

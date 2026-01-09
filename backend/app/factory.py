@@ -13,6 +13,9 @@ from app.api import (
     v1_webhooks,
     v1_inbound,
     v1_tariffs,
+    v1_hs_review,
+    v1_hs_rules,
+    v1_compliance,
 )
 
 
@@ -38,4 +41,7 @@ def create_app():
     app.register_blueprint(v1_webhooks.bp)
     app.register_blueprint(v1_inbound.bp)
     app.register_blueprint(v1_tariffs.bp)
+    app.register_blueprint(v1_hs_review.bp)
+    app.register_blueprint(v1_hs_rules.bp)
+    app.register_blueprint(v1_compliance.bp)
     return app

@@ -93,12 +93,12 @@ def _normalize_hs_code(code: str) -> str:
     return code.replace(".", "").strip()
 
 
-def _error_400(message: str, field: str) -> Tuple[Response, int]:
+def _error_400(message: str, field: str, error_class: str = "missing_required") -> Tuple[Response, int]:
     return (
         jsonify(
             {
                 "error": {
-                    "class": "missing_required",
+                    "class": error_class,
                     "message": message,
                     "field": field,
                     "severity": "block",
@@ -124,13 +124,13 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
     as_of = request.args.get("as_of")
 
     if not destination_country or len(destination_country) != 2:
-        return _error_400("Invalid destination_country", "destination_country")
+        return _error_400("Invalid destination_country", "destination_country", "invalid_format")
     if origin_country and len(origin_country) != 2:
-        return _error_400("Invalid origin_country", "origin_country")
-    if as_of and not re.match(r"^\\d{4}-\\d{2}-\\d{2}$", as_of):
-        return _error_400("Invalid as_of format (YYYY-MM-DD)", "as_of")
+        return _error_400("Invalid origin_country", "origin_country", "invalid_format")
+    if as_of and not re.match(r"^\d{4}-\d{2}-\d{2}$", as_of):
+        return _error_400("Invalid as_of format (YYYY-MM-DD)", "as_of", "invalid_format")
     if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", hs_code):
-        return _error_400("Invalid hs_code format", "hs_code")
+        return _error_400("Invalid hs_code format", "hs_code", "invalid_format")
 
     tariff = _get_tariff(destination_country, hs_code)
     if not tariff:
@@ -172,15 +172,15 @@ def calculate_tariff() -> Tuple[Response, int]:
     customs_value = data.get("customs_value")
 
     if not hs_code:
-        return _error_400("hs_code is required", "hs_code")
+        return _error_400("hs_code is required", "hs_code", "missing_required")
     if not origin_country:
-        return _error_400("origin_country is required", "origin_country")
+        return _error_400("origin_country is required", "origin_country", "missing_required")
     if not destination_country:
-        return _error_400("destination_country is required", "destination_country")
+        return _error_400("destination_country is required", "destination_country", "missing_required")
     if not customs_value or "amount" not in customs_value:
-        return _error_400("customs_value.amount is required", "customs_value.amount")
+        return _error_400("customs_value.amount is required", "customs_value.amount", "missing_required")
     if not re.match(r"^\d{4}(\.\d{2}){0,2}$|^\d{6,10}$", hs_code):
-        return _error_400("Invalid hs_code format", "hs_code")
+        return _error_400("Invalid hs_code format", "hs_code", "invalid_format")
 
     tariff = _get_tariff(destination_country, hs_code)
     if not tariff:

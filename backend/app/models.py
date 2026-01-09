@@ -127,9 +127,16 @@ class HSClassification(Base):
     review_required: bool = db.Column(db.Boolean, default=False, nullable=False, index=True)  # type: ignore
 
     duty_rate: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
+    duty_rate_override: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
     risk_flags: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
     quota_applicability: Optional[str] = db.Column(db.String(64), nullable=True)  # type: ignore
     explanations: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
+
+    status: str = db.Column(db.String(16), nullable=True, default="classified")  # type: ignore
+    final_source: Optional[str] = db.Column(db.String(32), nullable=True, default="system")  # type: ignore
+    reviewed_by: Optional[str] = db.Column(db.String(128), nullable=True)  # type: ignore
+    reviewed_at: Optional[datetime] = db.Column(db.DateTime, nullable=True)  # type: ignore
+    review_comment: Optional[str] = db.Column(db.Text, nullable=True)  # type: ignore
 
     classification_method: str = db.Column(db.String(32), default="rule_based")  # type: ignore
     processing_time_ms: Optional[int] = db.Column(db.Integer, nullable=True)  # type: ignore
@@ -137,6 +144,9 @@ class HSClassification(Base):
     rules_version: Optional[str] = db.Column(db.String(16), nullable=True)  # type: ignore
 
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    updated_at: datetime = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )  # type: ignore
 
     def __repr__(self) -> str:
         return f"<HSClassification {self.id} hs={self.final_hs_code} trace={self.trace_id}>"

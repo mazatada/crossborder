@@ -16,6 +16,7 @@
 
 ### 追記（2026-01-03）
 - 進捗記録をセッション単位で `.serena/memories/progress_log/YYYY-MM-DD/session_<NN>.md` に残す運用を採用
+- 仕様マイルストーン計画（`docs/spec/spec_milestone_plan.md`）を追加し、ハブにリンク
 
 ### 更新ファイル
 - `docs/deployment_strategy.md`
@@ -45,7 +46,10 @@
 
 ### 次のアクション
 - GitHub Actions のCI完了確認 → PRマージ判断
-\n### 追記（2026-01-01 21:17 JST）\n- /v1/export/isf と /v1/export/entry を公開（v1_export を登録）\n- /v1/products/:id/compliance を追加し、HS分類・ジョブ状況を参照可能にした\n
+### 追記（2026-01-01 21:17 JST）
+- /v1/export/isf と /v1/export/entry を公開（v1_export を登録）
+- /v1/products/:id/compliance を追加し、HS分類・ジョブ状況を参照可能にした
+
 ### 追記（2026-01-01）
 - 総合チェックリストと残作業の洗い出しを整理し、仕様書 `docs/spec/backend_completion_spec_v1.md` を作成
 - 残作業の確認項目: main CI green / pytest security マーカー / npm audit 方針 / OpenAPI 運用化 / Secrets 方針 / CORS 検証 / PII マスキング
@@ -233,4 +237,14 @@ git push origin feature/hs-api-impl
 
 **記録者**: Google Antigravity AI Assistant
 **次回更新**: PR更新後
+
+## 2026-01-09 更新サマリ
+
+- 変更: 述語レジストリを単一ソース化し RuleEngine/Validator を統一
+- 変更: DSL仕様とRuleDslErrorのfield/severityをdocs/OpenAPIに反映
+- 残作業: RuleDslError.detailsのoptional/nullable整理
+- 次アクション: 変更のコミットとPR更新
+- refs: backend/app/rules/predicates.py, backend/app/rules/engine.py, backend/app/api/v1_hs_rules.py, backend/openapi.yaml, docs/if_spec_extended.md, docs/spec/SPEC.md
+- テスト: docker compose build backend; docker compose run --rm pytest -k hs_rules (9 passed)
+
 
