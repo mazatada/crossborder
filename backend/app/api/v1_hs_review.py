@@ -26,6 +26,22 @@ def _error_404() -> Tuple[Response, int]:
     )
 
 
+def _error_409() -> Tuple[Response, int]:
+    return (
+        jsonify(
+            {
+                "error": {
+                    "class": "conflict",
+                    "message": "locked",
+                    "field": "status",
+                    "severity": "block",
+                }
+            }
+        ),
+        409,
+    )
+
+
 def _risk_flags_to_array(risk_flags: Any) -> List[Dict[str, Any]]:
     if isinstance(risk_flags, list):
         return risk_flags
@@ -96,6 +112,8 @@ def update_hs_classification(id: str) -> Tuple[Response, int]:
     record: Optional[HSClassification] = db.session.get(HSClassification, id)
     if record is None:
         return _error_404()
+    if record.status == "locked":
+        return _error_409()
 
     data = request.get_json(silent=True) or {}
 

@@ -109,3 +109,28 @@ def test_hs_review_sets_reviewed_at(client, api_key_header, db_session):
     data = resp.get_json()
     assert data["reviewed_at"] is not None
     assert data["status"] == "reviewed"
+
+
+def test_hs_review_conflict_when_locked(client, api_key_header, db_session):
+    trace_id = "TEST-REVIEW-LOCKED"
+    product_id = "prod_review_locked"
+    _create_classification(client, api_key_header, trace_id, product_id)
+
+    record = (
+        db_session.query(HSClassification)
+        .filter_by(trace_id=trace_id)
+        .first()
+    )
+    assert record is not None
+    record.status = "locked"
+    db_session.add(record)
+    db_session.commit()
+
+    resp = client.put(
+        f"/v1/hs-classifications/{record.id}",
+        json={"review_comment": "should fail"},
+        headers=api_key_header,
+    )
+    assert resp.status_code == 409
+    data = resp.get_json()
+    assert data["error"]["class"] == "conflict"
