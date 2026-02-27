@@ -10,12 +10,11 @@ import datetime as dt
 from sqlalchemy import text, func
 from sqlalchemy.exc import SQLAlchemyError
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from app.db import db
-from app.models import Job
-from app.audit import record_event
-from app.webhook import post_event
+from app.models import Job, WebhookEndpoint
+from app.audit import record_event, set_trace_id
 from app.jobs import handlers as job_handlers
 
 REGISTRY = dict(job_handlers.REGISTRY)
@@ -158,127 +157,72 @@ def _heartbeat(session, job: Job):
     session.commit()
 
 
-def _after_success(job, result):
-    # イベント名はジョブタイプに応じて変換
+def _enqueue_webhook_jobs(session, job: Job, result: dict) -> List[Job]:
+    """
+    【Outbox パターン】
+    ジョブ成功時に呼ばれる。登録された全 WebhookEndpoint に対して
+    webhook_dispatch ジョブを **同一トランザクション内** で起票する。
+    コミットは呼び出し元（worker_once）で一括で行うため、
+    本体ジョブのステータス更新と Webhook 起票がアトミックに確定する。
+    """
     event_type = {
         "clearance_pack": "DOCS_PACKAGED",
         "pn_submit": "PN_SUBMITTED",
     }.get(job.type, f"JOB_{job.type.upper()}_SUCCEEDED")
 
-    payload = {
-        "job_id": job.id,
+    # --- Webhook ペイロード（PII を含めない。リファレンス ID のみ） ---
+    webhook_payload = {
         "event_type": event_type,
+        "job_id": job.id,
+        "trace_id": job.trace_id,
         "occurred_at": (
             job.updated_at.isoformat() if getattr(job, "updated_at", None) else None
         ),
-        "trace_id": job.trace_id,
-        "result": result,
     }
+    # result から ID 系だけ抽出して載せる（PII 防止）
+    if isinstance(result, dict):
+        for safe_key in ("id", "product_id", "order_id", "package_id", "classification_id"):
+            if safe_key in result:
+                webhook_payload[safe_key] = result[safe_key]
+
+    # --- DB から登録済み WebhookEndpoint を引く ---
     try:
-        resp = post_event(event_type, payload, trace_id=job.trace_id)
-        status = resp.get("status")
-        if not isinstance(status, int) or status >= 500:
-            raise RuntimeError(f"webhook status {status}")
-        record_event(
-            event="WEBHOOK_POST",
-            trace_id=job.trace_id or "",
-            payload={
-                "url": os.getenv("WEBHOOK_URL", ""),
-                "status": resp.get("status"),
-                "latency_ms": resp.get("latency_ms"),
+        endpoints = session.query(WebhookEndpoint).filter(
+            WebhookEndpoint.active == True  # noqa: E712
+        ).all()
+    except Exception:
+        # WebhookEndpoint テーブルが未構築等の場合は空リストで続行
+        endpoints = []
+
+    created_jobs: List[Job] = []
+    for ep in endpoints:
+        wh_job = Job(
+            type="webhook_dispatch",
+            status="queued",
+            attempts=0,
+            next_run_at=func.now(),
+            payload_json={
+                "endpoint_id": ep.id,
+                "endpoint_url": ep.url,
+                "endpoint_secret": ep.secret,
                 "event_type": event_type,
-                "job_id": job.id,
+                "payload": webhook_payload,
+                "retry_max_attempts": WEBHOOK_RETRY_MAX_ATTEMPTS,
+                "retry_base_sec": WEBHOOK_RETRY_BASE_SEC,
             },
+            trace_id=job.trace_id,
         )
-    except Exception as e:
-        err = {"class": e.__class__.__name__, "message": str(e)}
+        session.add(wh_job)
+        created_jobs.append(wh_job)
+
+    if created_jobs:
         _log(
-            level="error",
-            event="WEBHOOK_POST_FAILED",
+            event="WEBHOOK_JOBS_ENQUEUED",
             job_id=job.id,
-            type=job.type,
-            error=err["message"],
+            event_type=event_type,
+            count=len(created_jobs),
         )
-        # webhook_retry 自身は再送ジョブを作らず、監査だけ残す
-        if job.type == "webhook_retry":
-            try:
-                record_event(
-                    event="WEBHOOK_POST_FAILED",
-                    trace_id=job.trace_id,
-                    target_type="job",
-                    target_id=job.id,
-                    type=job.type,
-                    error_class=err["class"],
-                    error_message=err["message"],
-                )
-            except Exception:
-                _log(
-                    level="error",
-                    event="AUDIT_LOG_FAILED",
-                    job_id=job.id,
-                    type=job.type,
-                    reason="record_event failed after webhook failure",
-                )
-            return
-        try:
-            retry_job = Job(
-                type="webhook_retry",
-                status="queued",
-                attempts=0,
-                next_run_at=func.now(),
-                payload_json={
-                    "event_type": event_type,
-                    "payload": payload,
-                    "trace_id": job.trace_id,
-                    "retry_max_attempts": WEBHOOK_RETRY_MAX_ATTEMPTS,
-                    "retry_base_sec": WEBHOOK_RETRY_BASE_SEC,
-                },
-                trace_id=job.trace_id,
-            )
-            db.session.add(retry_job)
-            db.session.commit()
-            _log(
-                event="WEBHOOK_RETRY_ENQUEUED",
-                job_id=job.id,
-                retry_job_id=retry_job.id,
-                event_type=event_type,
-            )
-            record_event(
-                event="WEBHOOK_POST_FAILED",
-                trace_id=job.trace_id,
-                target_type="job",
-                target_id=job.id,
-                type=job.type,
-                error_class=err["class"],
-                error_message=err["message"],
-                retry_job_id=retry_job.id,
-            )
-        except Exception as e2:
-            db.session.rollback()
-            _log(
-                level="error",
-                event="WEBHOOK_RETRY_ENQUEUE_FAILED",
-                job_id=job.id,
-                type=job.type,
-                error=str(e2),
-            )
-            try:
-                record_event(
-                    event="WEBHOOK_RETRY_ENQUEUE_FAILED",
-                    trace_id=job.trace_id,
-                    target_type="job",
-                    target_id=job.id,
-                    type=job.type,
-                    error_message=str(e2),
-                )
-            except Exception:
-                _log(
-                    level="error",
-                    event="AUDIT_LOG_FAILED",
-                    job_id=job.id,
-                    type=job.type,
-                    reason="record_event failed after webhook failure",
-                )
+    return created_jobs
 
 
 def _schedule_retry(session, job: Job, err: dict, backoff_sec: Optional[float] = None):
@@ -365,25 +309,27 @@ def worker_once(session):
     for job in batch:
         t0 = time.time()
         try:
-            # 0) ハートビートを先に刻んで可視性タイムアウトを延長
+            # 0) Trace ID をコンテキストにセット（ワーカー側伝播）
+            if job.trace_id:
+                set_trace_id(job.trace_id)
+
+            # 1) ハートビートを先に刻んで可視性タイムアウトを延長
             _heartbeat(session, job)
 
-            # 1) ハンドラ実行
+            # 2) ハンドラ実行
             result = dispatch(job)
 
-            # 2) 成功として確定（DB書き込み）
+            # 3) 成功として確定 + Webhook ジョブを同一 TX で起票（Outbox パターン）
             _complete(session, job, result)
-            session.commit()  # ← 先に確定（ここまでは元のまま）
-
-            # 3) ★成功後フック：Webhook送信＋監査記録
-            _after_success(job, result)  # ← この1行を追加したため、ここが新しい
+            _enqueue_webhook_jobs(session, job, result)
+            session.commit()  # ← 本体の成功 + Webhook 起票がアトミックに確定
 
             # 4) 監査イベント（本処理とは独立トランザクションでOK）
             record_event(
                 event="JOB_SUCCEEDED",
                 trace_id=job.trace_id,
                 target_type="job",
-                target_id=job.id,
+                target_id=str(job.id),
                 type=job.type,
             )
             _log(

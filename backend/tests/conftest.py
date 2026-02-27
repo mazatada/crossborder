@@ -9,6 +9,21 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 
+def _should_skip_postgres():
+    """conftest.py の app fixture で SQLite にスワップされるため、
+    PG_TESTS=1 が明示されていない限りpostgresテストをスキップする"""
+    return os.getenv("PG_TESTS", "") != "1"
+
+
+def pytest_collection_modifyitems(config, items):
+    """@pytest.mark.postgres テストを SQLite 環境で自動スキップ"""
+    if _should_skip_postgres():
+        skip_pg = pytest.mark.skip(reason="requires PostgreSQL (set PG_TESTS=1 to run)")
+        for item in items:
+            if "postgres" in item.keywords:
+                item.add_marker(skip_pg)
+
+
 @pytest.fixture(scope="session")
 def _app():
     """Session-wide test `Flask` application factory."""

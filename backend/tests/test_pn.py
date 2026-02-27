@@ -56,19 +56,12 @@ def test_worker_processes_prior_notice_job(monkeypatch):
     from app.jobs import cli
 
     record_calls = []
-    webhook_calls = []
 
     def _record_event(**kwargs):
         record_calls.append(kwargs)
 
-    def _post_event(event_type, payload, trace_id=None):
-        webhook_calls.append(
-            {"event_type": event_type, "payload": payload, "trace_id": trace_id}
-        )
-        return {"status": 200, "latency_ms": 5}
-
     monkeypatch.setattr("app.jobs.cli.record_event", _record_event)
-    monkeypatch.setattr("app.jobs.cli.post_event", _post_event)
+    monkeypatch.setattr("app.jobs.cli._enqueue_webhook_jobs", lambda *a, **k: None)
 
     job = Job(
         type="pn_submit",
@@ -105,9 +98,9 @@ def test_worker_processes_prior_notice_job(monkeypatch):
     assert job.status == "succeeded"
     assert job.result_json["receipt_media_id"] == "dev:pn-receipt"
 
-    assert webhook_calls[0]["event_type"] == "PN_SUBMITTED"
-    assert record_calls[0]["event"] == "WEBHOOK_POST"
-    assert record_calls[1]["event"] == "JOB_SUCCEEDED"
+    # Outbox化により直接webhookは呼ばれない。
+    # record_eventでJOB_SUCCEEDED が記録されていることを確認
+    assert any(c["event"] == "JOB_SUCCEEDED" for c in record_calls)
 
     db.session.delete(job)
     db.session.commit()

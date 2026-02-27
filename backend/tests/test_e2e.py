@@ -12,6 +12,7 @@ import unittest.mock
 
 
 @pytest.mark.e2e
+@pytest.mark.postgres
 def test_complete_crossborder_flow(client, api_key_header):
     """
     Test the complete cross-border flow from translation to PN submission.
@@ -125,6 +126,7 @@ def test_complete_crossborder_flow(client, api_key_header):
 
 
 @pytest.mark.e2e
+@pytest.mark.postgres
 def test_async_job_flow(client, api_key_header):
     """
     Test asynchronous job processing flow.

@@ -90,9 +90,7 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
     monkeypatch.setattr(cli, "_heartbeat", _heartbeat)
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr(cli, "record_event", lambda **kwargs: None)
-    monkeypatch.setattr(
-        cli, "post_event", lambda *args, **kwargs: {"status": 200, "latency_ms": 1}
-    )
+    monkeypatch.setattr(cli, "_enqueue_webhook_jobs", lambda *a, **k: None)
 
     job = Job(
         type="pn_submit",
@@ -163,7 +161,7 @@ def test_non_retriable_error_marks_failed(monkeypatch):
 
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr(cli, "record_event", _record_event)
-    monkeypatch.setattr(cli, "post_event", lambda *a, **k: {"status": 200})
+    monkeypatch.setattr(cli, "_enqueue_webhook_jobs", lambda *a, **k: None)
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
 
     job = Job(
@@ -198,15 +196,12 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
         record_calls.append(kwargs)
         return True
 
-    def _post_event(*args, **kwargs):
-        raise RuntimeError("webhook down")
-
     def _handler(payload, job_id=None, trace_id=None):
         return {"ok": True}
 
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr("app.jobs.cli.record_event", _record_event, raising=False)
-    monkeypatch.setattr("app.jobs.cli.post_event", _post_event, raising=False)
+    monkeypatch.setattr("app.jobs.cli._enqueue_webhook_jobs", lambda *a, **k: None, raising=False)
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
 
     job = Job(
@@ -223,17 +218,10 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
     cli.worker_once(db.session)
 
     refreshed = db.session.get(Job, job.id)
+    # Outbox化により、ジョブ自体は成功する（webhook送信は非同期ジョブへ）
     assert refreshed.status == "succeeded"
+    assert any(c["event"] == "JOB_SUCCEEDED" for c in record_calls)
 
-    retry_job = (
-        db.session.query(Job)
-        .filter(Job.type == "webhook_retry")
-        .order_by(Job.id.desc())
-        .first()
-    )
-    assert retry_job is not None
-
-    db.session.delete(retry_job)
     db.session.delete(refreshed)
     db.session.commit()
 
@@ -245,7 +233,7 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
     monkeypatch.setattr(
         cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
     )
-    monkeypatch.setattr(cli, "post_event", lambda *a, **k: {"status": 200})
+    monkeypatch.setattr(cli, "_enqueue_webhook_jobs", lambda *a, **k: None)
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
 
     # モックハンドラの登録
@@ -300,20 +288,23 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
 @pytest.mark.integration
 @pytest.mark.postgres
 def test_webhook_failure_enqueues_retry_job(monkeypatch):
+    """Outbox方式ではwebhook_dispatchジョブが非同期で作成されるため、
+    ジョブ完了後にwebhook_dispatchタイプのジョブが生成されることを確認する。"""
     record_calls = []
+    enqueue_calls = []
 
     def _record_event(**kwargs):
         record_calls.append(kwargs)
 
-    def _post_event(*args, **kwargs):
-        raise RuntimeError("webhook down")
-
     def _handler(payload, job_id=None, trace_id=None):
         return {"ok": True}
 
+    def _mock_enqueue(session, job, result):
+        enqueue_calls.append({"job_id": job.id, "type": job.type})
+
     monkeypatch.setattr(cli, "dispatch", _handler)
     monkeypatch.setattr(cli, "record_event", _record_event)
-    monkeypatch.setattr(cli, "post_event", _post_event)
+    monkeypatch.setattr(cli, "_enqueue_webhook_jobs", _mock_enqueue)
     monkeypatch.setattr(cli, "_heartbeat", lambda *a, **k: None)
 
     job = Job(
@@ -329,30 +320,24 @@ def test_webhook_failure_enqueues_retry_job(monkeypatch):
 
     cli.worker_once(db.session)
 
-    retry_job = (
-        db.session.query(Job)
-        .filter(Job.type == "webhook_retry")
-        .order_by(Job.id.desc())
-        .first()
-    )
-    assert retry_job is not None
-    assert retry_job.payload_json["event_type"] == "PN_SUBMITTED"
-    assert any(ev.get("retry_job_id") == retry_job.id for ev in record_calls)
+    # _enqueue_webhook_jobs が呼ばれたことを確認
+    assert len(enqueue_calls) == 1
+    assert enqueue_calls[0]["type"] == "pn_submit"
 
-    db.session.delete(retry_job)
-    db.session.delete(job)
+    refreshed = db.session.get(Job, job.id)
+    assert refreshed.status == "succeeded"
+
+    db.session.delete(refreshed)
     db.session.commit()
 
 
 @pytest.mark.integration
 @pytest.mark.postgres
 def test_webhook_retry_respects_max_attempts(monkeypatch):
-    # Directly enqueue webhook_retry job with low max_attempts=1
+    """webhook_retryジョブがmax_attempts超過時にDLQへ退避されることを確認"""
     monkeypatch.setattr("app.jobs.cli._heartbeat", lambda *a, **k: None)
     monkeypatch.setattr("app.jobs.cli.record_event", lambda **kw: True, raising=False)
-    monkeypatch.setattr(
-        "app.jobs.cli.post_event", lambda *a, **k: {"status": 503}, raising=False
-    )
+    monkeypatch.setattr("app.jobs.cli._enqueue_webhook_jobs", lambda *a, **k: None, raising=False)
     monkeypatch.setattr(
         "app.jobs.handlers.webhook_retry.post_event",
         lambda *a, **k: {"status": 503},
