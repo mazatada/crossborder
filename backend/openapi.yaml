@@ -1162,6 +1162,8 @@ paths:
     post:
       tags: [Integrations]
       summary: Webhook登録
+      security:
+        - ApiKeyAuth: []
       requestBody:
         required: true
         content:
@@ -1186,6 +1188,8 @@ paths:
     get:
       tags: [Integrations]
       summary: Webhook一覧
+      security:
+        - ApiKeyAuth: []
       responses:
         '200':
           description: 一覧結果
@@ -1202,6 +1206,8 @@ paths:
     delete:
       tags: [Integrations]
       summary: Webhook削除（無効化）
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: path
           name: webhook_id
@@ -1226,6 +1232,8 @@ paths:
     post:
       tags: [Integrations]
       summary: Webhookテスト送信
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: path
           name: webhook_id
@@ -1247,6 +1255,8 @@ paths:
     get:
       tags: [Integrations]
       summary: DLQ一覧
+      security:
+        - ApiKeyAuth: []
       responses:
         '200':
           description: DLQ一覧
@@ -1263,6 +1273,8 @@ paths:
     post:
       tags: [Integrations]
       summary: 期限切れDLQの削除
+      security:
+        - ApiKeyAuth: []
       responses:
         '200':
           description: 削除件数
@@ -1277,6 +1289,8 @@ paths:
     post:
       tags: [Integrations]
       summary: DLQ手動再送
+      security:
+        - ApiKeyAuth: []
       parameters:
         - in: path
           name: dlq_id
