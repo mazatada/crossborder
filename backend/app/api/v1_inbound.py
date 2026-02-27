@@ -2,30 +2,17 @@ from flask import Blueprint, request, jsonify
 from app.db import db
 from app.models import OrderStatus
 from app.audit import record_event
+from app.auth import require_api_key
 from datetime import datetime, timezone
 from sqlalchemy.exc import IntegrityError
-import os
 
 bp = Blueprint("v1_inbound", __name__, url_prefix="/v1/integrations")
 
 
 @bp.post("/orders/<order_id>/status")
+@require_api_key
 def receive_order_status(order_id: str):
     """Receive order status update from external system"""
-
-    # Verify API key (get dynamically to support testing)
-    api_key = request.headers.get("X-API-Key")
-    expected_key = os.getenv("INBOUND_API_KEY", "dev-api-key-change-me")
-    if api_key != expected_key:
-        return (
-            jsonify(
-                {
-                    "status": "error",
-                    "error": {"code": "UNAUTHORIZED", "message": "Invalid API key"},
-                }
-            ),
-            401,
-        )
 
     data = request.get_json(silent=True) or {}
 

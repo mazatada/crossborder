@@ -283,7 +283,7 @@ def test_receive_order_status(client, monkeypatch):
             "customer_region": "JP",
             "traceId": "TEST-TRACE-008",
         },
-        headers={"X-API-Key": "test-api-key"},
+        headers={"Authorization": "Bearer test-api-key"},
     )
 
     assert resp.status_code == 202
@@ -303,7 +303,7 @@ def test_receive_order_status_invalid_api_key(client):
     resp = client.post(
         "/v1/integrations/orders/ORDER-123/status",
         json={"status": "PAID", "ts": "2025-12-05T12:00:00Z"},
-        headers={"X-API-Key": "wrong-key"},
+        headers={"Authorization": "Bearer wrong-key"},
     )
 
     assert resp.status_code == 401

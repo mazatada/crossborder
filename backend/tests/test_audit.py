@@ -25,7 +25,7 @@ def audit_data():
 
 @pytest.mark.integration
 def test_audit_trace(client, audit_data):
-    resp = client.get("/v1/audit/trace/trace-1")
+    resp = client.get("/v1/audit/trace/trace-1", headers={"Authorization": "Bearer test-api-key"})
     assert resp.status_code == 200
     data = resp.json
     assert len(data["events"]) == 2
@@ -35,7 +35,7 @@ def test_audit_trace(client, audit_data):
 
 @pytest.mark.integration
 def test_audit_recent(client, audit_data):
-    resp = client.get("/v1/audit/recent?limit=2")
+    resp = client.get("/v1/audit/recent?limit=2", headers={"Authorization": "Bearer test-api-key"})
     assert resp.status_code == 200
     data = resp.json
     assert len(data["events"]) == 2
