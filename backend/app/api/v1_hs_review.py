@@ -122,7 +122,22 @@ def update_hs_classification(id: str) -> Tuple[Response, int]:
     if "final_source" in data:
         record.final_source = data.get("final_source") or record.final_source
     if "duty_rate_override" in data:
-        record.duty_rate_override = data.get("duty_rate_override")
+        override = data.get("duty_rate_override")
+        if override and isinstance(override, dict):
+            pct_val = override.get("ad_valorem_pct")
+            rate_val = override.get("ad_valorem_rate")
+            # 非数値の入力をガードして 400 を返す
+            if pct_val is not None and not isinstance(pct_val, (int, float)):
+                return jsonify({"error": "ad_valorem_pct must be a number"}), 400
+            if rate_val is not None and not isinstance(rate_val, (int, float)):
+                return jsonify({"error": "ad_valorem_rate must be a number"}), 400
+            if "ad_valorem_pct" in override and "ad_valorem_rate" not in override:
+                if pct_val is not None:
+                    override["ad_valorem_rate"] = round(pct_val / 100.0, 5)
+            elif "ad_valorem_rate" in override and "ad_valorem_pct" not in override:
+                if rate_val is not None:
+                    override["ad_valorem_pct"] = round(rate_val * 100.0, 3)
+        record.duty_rate_override = override
     if "review_required" in data:
         record.review_required = bool(data.get("review_required"))
     if "review_comment" in data:

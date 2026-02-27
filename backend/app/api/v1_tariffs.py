@@ -145,7 +145,7 @@ def get_tariff(destination_country: str, hs_code: str) -> Tuple[Response, int]:
         "duty_rate": {
             "type": "ad_valorem",
             "ad_valorem_rate": ad_valorem_rate,
-            "ad_valorem_pct": ad_valorem_rate * 100,
+            "ad_valorem_pct": round(ad_valorem_rate * 100.0, 3),
             "specific": None,
             "currency": tariff["currency"],
             "basis_uom": tariff["basis_uom"],
@@ -188,7 +188,7 @@ def calculate_tariff() -> Tuple[Response, int]:
 
     ad_valorem_rate = tariff["ad_valorem_rate"]
     amount = float(customs_value["amount"])
-    basic_amount = amount * ad_valorem_rate
+    basic_amount = round(amount * ad_valorem_rate, 5)
 
     response = {
         "hs_code": hs_code,

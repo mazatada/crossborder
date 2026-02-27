@@ -68,6 +68,8 @@
 - [ ] Inbound `ORDER_PAID` / `ORDER_CANCELED` の必須項目・バリデーション定義（仕様書整合）
 - [ ] データ保持/非保持ポリシーの明文化（PIIを含む保持期間）
 - [ ] OpenAPIドラフト仕様の未反映分（Webhook送信/受信I/F）の反映方針決定
+- [ ] HS Review / HS Rules / Compliance のOpenAPI/実装最終整合（Issue #9 / #8）
+- [ ] 監査イベントの trace_id/target_id 設計方針の確定（Issue #10）
 
 ## 6. 判定ルール
 - 「4.」がすべて 実装済み になれば **実装完了**

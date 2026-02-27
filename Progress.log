@@ -579,3 +579,23 @@ next:
 
 refs:
   - AGENTS.md#7.4 ci-pipeline (lint→pytest→playwright)
+
+## 2026-01-04T00:15:00+09:00 [chief] task=tariff-json-hardening
+
+context:
+  branch: feature/hs-api-impl
+  files:
+    - backend/app/api/v1_tariffs.py
+    - backend/openapi.yaml
+    - docs/if_spec_extended.md
+
+summary:
+  - Tariff JSONの必須項目を強化し、TTL遅延の運用影響を明記
+  - 404用Error404スキーマをOpenAPIに追加
+  - commit/push 完了
+
+next:
+  - 改ざん検知（hash/署名）方針の明文化、またはPhase B(DB化)設計に着手
+
+refs:
+  - commit: 1b55cee1

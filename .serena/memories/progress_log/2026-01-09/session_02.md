@@ -1,0 +1,25 @@
+## 2026-01-09T12:18:04+09:00 [backend] task=predicate registry + DSL spec alignment
+
+context:
+  branch: feature/hs-api-impl
+  files:
+    - backend/app/rules/predicates.py
+    - backend/app/rules/engine.py
+    - backend/app/api/v1_hs_rules.py
+    - backend/tests/test_api_hs_rules.py
+    - backend/openapi.yaml
+    - docs/if_spec_extended.md
+    - docs/spec/SPEC.md
+
+summary:
+  - 述語定義を単一ソース化し RuleEngine/Validator を統一レジストリ参照へ移行
+  - DSL仕様を docs に明記し、RuleDslError の field/severity を OpenAPI に反映
+  - Dockerイメージ再ビルド後に pytest -k hs_rules を実行して9件成功を確認
+
+next:
+  - RuleDslError.details のoptional/nullable定義をOpenAPI/SPECで整理
+  - 変更のコミットとPR更新（Issue #8 へ方針コメント済）
+
+refs:
+  - Issue: https://github.com/mazatada/crossborder/issues/8
+  - Tests: docker compose build backend; docker compose run --rm pytest -k hs_rules

@@ -47,13 +47,20 @@ def record_event(
     event: str,
     trace_id: Optional[str] = None,
     target_type: Optional[str] = None,
-    target_id: Optional[int] = None,
+    target_id: Optional[str] = None,
+    target_key: Optional[str] = None,
     **details: Any,
 ) -> None:
     """
     監査イベントを書き込む。メイン処理とは独立TXで保存し、失敗しても絶対に本処理を止めない。
-    旧スキーマ(audit_events: id, ts, event, trace_id, payload) / 新スキーマの両方に対応。
     """
+    import uuid
+    if not trace_id:
+        trace_id = f"audit-{uuid.uuid4().hex[:8]}"
+
+    # Backwards compatibility: use target_key if provided, else target_id
+    effective_target = target_key if target_key is not None else target_id
+
     try:
         engine = db.engine
         with engine.begin() as conn:  # ← メインの db.session とは分離
@@ -61,7 +68,7 @@ def record_event(
             if schema == "old":
                 payload = {
                     "target_type": target_type,
-                    "target_id": target_id,
+                    "target_key": effective_target,
                     **(details or {}),
                 }
                 conn.execute(
@@ -81,6 +88,22 @@ def record_event(
                 details_json_str = (
                     json.dumps(details, ensure_ascii=False) if details else None
                 )
+                
+                # 新スキーマがもし展開された場合のフォールバック（target_idはBIGINTなので文字列が入らないかもしれないため）
+                # もし数値ならtarget_idへ、それ以外は details_json にねじ込む
+                t_id_int = None
+                try:
+                    if effective_target is not None:
+                        t_id_int = int(effective_target)
+                except ValueError:
+                    # 文字列IDの場合は詳細はdetailsに入れる
+                    if details_json_str is None:
+                        details_json_str = json.dumps({"target_key": effective_target}, ensure_ascii=False)
+                    else:
+                        d = details.copy()
+                        d["target_key"] = effective_target
+                        details_json_str = json.dumps(d, ensure_ascii=False)
+
                 conn.execute(
                     text(
                         """
@@ -92,7 +115,7 @@ def record_event(
                         "trace_id": trace_id,
                         "event": event,
                         "target_type": target_type,
-                        "target_id": target_id,
+                        "target_id": t_id_int,
                         "details_json": details_json_str,
                     },
                 )

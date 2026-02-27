@@ -248,3 +248,11 @@ git push origin feature/hs-api-impl
 - テスト: docker compose build backend; docker compose run --rm pytest -k hs_rules (9 passed)
 
 
+
+- 変更: HSルールCRUDの監査イベント追加とError404フォーマット統一
+- 変更: HSレビュー更新にlocked時の409競合を追加
+- 残作業: Issue #9残項目確認、Issue #8 OpenAPI整合
+- 次アクション: 監査trace_id/target_id設計をIssue #10で検討
+- refs: backend/app/api/v1_hs_rules.py, backend/app/api/v1_hs_review.py, backend/app/api/v1_compliance.py
+- テスト: docker compose run --rm pytest -k hs_rules; docker compose run --rm pytest -k hs_review
+

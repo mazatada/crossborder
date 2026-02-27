@@ -3,11 +3,13 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import func
 from app.db import db
 from app.models import Job
+from app.auth import require_api_key
 
 bp = Blueprint("v1_jobs", __name__, url_prefix="/v1")
 
 
 @bp.get("/jobs/<int:job_id>")
+@require_api_key
 def get_job(job_id: int):
     job = db.session.get(Job, job_id)  # SQLAlchemy 2.x の get
     if not job:
@@ -41,6 +43,7 @@ def get_job(job_id: int):
 
 
 @bp.post("/jobs")
+@require_api_key
 def create_job():
     data = request.get_json(silent=True) or {}
     jtype = data.get("type")

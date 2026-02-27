@@ -32,10 +32,11 @@ def test_hmac_signature_verification():
     assert verify_signature(payload, signature, "wrong-secret") is False
 
 
-def test_register_webhook(client):
+def test_register_webhook(client, api_key_header):
     """Test webhook registration"""
     resp = client.post(
         "/v1/integrations/webhooks",
+        headers=api_key_header,
         json={
             "url": "https://example.com/webhook",
             "events": ["HS_CLASSIFIED", "DOCS_PACKAGED"],
@@ -52,24 +53,25 @@ def test_register_webhook(client):
     assert data["active"] is True
 
 
-def test_register_webhook_invalid_url(client):
+def test_register_webhook_invalid_url(client, api_key_header):
     """Test webhook registration with invalid URL"""
-    resp = client.post("/v1/integrations/webhooks", json={"events": ["HS_CLASSIFIED"]})
+    resp = client.post("/v1/integrations/webhooks", headers=api_key_header, json={"events": ["HS_CLASSIFIED"]})
 
     assert resp.status_code == 400
     data = resp.get_json()
     assert data["error"]["code"] == "INVALID_ARGUMENT"
 
 
-def test_list_webhooks(client):
+def test_list_webhooks(client, api_key_header):
     """Test listing webhooks"""
     # Register a webhook first
     client.post(
         "/v1/integrations/webhooks",
+        headers=api_key_header,
         json={"url": "https://example.com/webhook1", "events": ["HS_CLASSIFIED"]},
     )
 
-    resp = client.get("/v1/integrations/webhooks")
+    resp = client.get("/v1/integrations/webhooks", headers=api_key_header)
 
     assert resp.status_code == 200
     data = resp.get_json()
@@ -79,18 +81,19 @@ def test_list_webhooks(client):
     assert "secret" not in data["webhooks"][0]
 
 
-def test_delete_webhook(client):
+def test_delete_webhook(client, api_key_header):
     """Test webhook deletion"""
     # Register a webhook
     create_resp = client.post(
         "/v1/integrations/webhooks",
+        headers=api_key_header,
         json={"url": "https://example.com/webhook", "events": ["HS_CLASSIFIED"]},
     )
     webhook_id = create_resp.get_json()["id"]
 
     # Delete it
     resp = client.delete(
-        f"/v1/integrations/webhooks/{webhook_id}", json={"traceId": "TEST-TRACE-002"}
+        f"/v1/integrations/webhooks/{webhook_id}", headers=api_key_header, json={"traceId": "TEST-TRACE-002"}
     )
 
     assert resp.status_code == 200
@@ -145,7 +148,7 @@ def test_webhook_signature_in_dispatcher(client, monkeypatch):
     assert verify_signature(payload, signature, "test-secret") is True
 
 
-def test_list_dlq(client):
+def test_list_dlq(client, api_key_header):
     """Test listing DLQ entries"""
     # Create a webhook and DLQ entry
     webhook = WebhookEndpoint(
@@ -170,7 +173,7 @@ def test_list_dlq(client):
     db.session.add(dlq_entry)
     db.session.commit()
 
-    resp = client.get("/v1/integrations/webhooks/dlq")
+    resp = client.get("/v1/integrations/webhooks/dlq", headers=api_key_header)
 
     assert resp.status_code == 200
     data = resp.get_json()
@@ -179,7 +182,7 @@ def test_list_dlq(client):
     assert data["dlq_entries"][0]["event_type"] == "TEST_EVENT"
 
 
-def test_replay_dlq(client, monkeypatch):
+def test_replay_dlq(client, monkeypatch, api_key_header):
     """Test replaying a DLQ entry"""
     import requests
 
@@ -218,6 +221,7 @@ def test_replay_dlq(client, monkeypatch):
 
     resp = client.post(
         f"/v1/integrations/webhooks/dlq/{dlq_entry.id}/replay",
+        headers=api_key_header,
         json={"traceId": "TEST-TRACE-005"},
     )
 
@@ -227,7 +231,7 @@ def test_replay_dlq(client, monkeypatch):
     assert data["replayed"] is True
 
 
-def test_cleanup_dlq(client):
+def test_cleanup_dlq(client, api_key_header):
     """Test cleaning up expired DLQ entries"""
     # Create webhook
     webhook = WebhookEndpoint(
@@ -254,7 +258,7 @@ def test_cleanup_dlq(client):
     db.session.commit()
 
     resp = client.post(
-        "/v1/integrations/webhooks/dlq/cleanup", json={"traceId": "TEST-TRACE-007"}
+        "/v1/integrations/webhooks/dlq/cleanup", headers=api_key_header, json={"traceId": "TEST-TRACE-007"}
     )
 
     assert resp.status_code == 200
@@ -279,7 +283,7 @@ def test_receive_order_status(client, monkeypatch):
             "customer_region": "JP",
             "traceId": "TEST-TRACE-008",
         },
-        headers={"X-API-Key": "test-api-key"},
+        headers={"Authorization": "Bearer test-api-key"},
     )
 
     assert resp.status_code == 202
@@ -299,7 +303,7 @@ def test_receive_order_status_invalid_api_key(client):
     resp = client.post(
         "/v1/integrations/orders/ORDER-123/status",
         json={"status": "PAID", "ts": "2025-12-05T12:00:00Z"},
-        headers={"X-API-Key": "wrong-key"},
+        headers={"Authorization": "Bearer wrong-key"},
     )
 
     assert resp.status_code == 401
