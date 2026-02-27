@@ -62,6 +62,9 @@ def receive_order_status(order_id: str):
     # Parse timestamp
     try:
         ts_aware = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+        # タイムゾーン情報がない場合はUTCとして扱う（サーバーローカルTZ依存を防止）
+        if ts_aware.tzinfo is None:
+            ts_aware = ts_aware.replace(tzinfo=timezone.utc)
         ts = ts_aware.astimezone(timezone.utc).replace(tzinfo=None)
     except ValueError:
         return (

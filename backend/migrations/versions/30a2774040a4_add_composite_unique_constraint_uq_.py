@@ -20,6 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
+    # ── 既存の重複データを排除（最新の1行を残して削除） ──
+    # 制約追加前のデータに重複がある場合、CREATE UNIQUE CONSTRAINT が
+    # IntegrityError で失敗するため、先にクリーンアップを行う。
+    op.execute(
+        sa.text("""
+            DELETE FROM order_statuses
+            WHERE id NOT IN (
+                SELECT MAX(id)
+                FROM order_statuses
+                GROUP BY order_id, status
+            )
+        """)
+    )
     op.create_unique_constraint('uq_order_status', 'order_statuses', ['order_id', 'status'])
 
 
