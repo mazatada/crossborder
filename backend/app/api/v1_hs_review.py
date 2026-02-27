@@ -122,7 +122,15 @@ def update_hs_classification(id: str) -> Tuple[Response, int]:
     if "final_source" in data:
         record.final_source = data.get("final_source") or record.final_source
     if "duty_rate_override" in data:
-        record.duty_rate_override = data.get("duty_rate_override")
+        override = data.get("duty_rate_override")
+        if override and isinstance(override, dict):
+            if "ad_valorem_pct" in override and "ad_valorem_rate" not in override:
+                if override["ad_valorem_pct"] is not None:
+                    override["ad_valorem_rate"] = round(override["ad_valorem_pct"] / 100.0, 5)
+            elif "ad_valorem_rate" in override and "ad_valorem_pct" not in override:
+                if override["ad_valorem_rate"] is not None:
+                    override["ad_valorem_pct"] = round(override["ad_valorem_rate"] * 100.0, 3)
+        record.duty_rate_override = override
     if "review_required" in data:
         record.review_required = bool(data.get("review_required"))
     if "review_comment" in data:

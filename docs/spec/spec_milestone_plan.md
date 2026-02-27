@@ -59,12 +59,15 @@
 
 ### M4: 実装・検証への接続
 
-- [ ] `docs/spec/backend_completion_spec_v1.md` の残作業にリンク
-- [ ] 実装タスクへの分解（API/DB/Jobs/Docs）
+- [x] `docs/spec/backend_completion_spec_v1.md` の残作業にリンク
+- [~] 実装タスクへの分解（API/DB/Jobs/Docs）
 - 次の具体作業:
   - 分解基準: API / DB / Jobs / Docs / QA の5軸で切り分け
   - M3確定後に実装タスクを分割し、担当を割当
   - 仕様→OpenAPI→実装の追跡リンクを追加
+  - API: Issue #9（HS Review/Rules/Compliance 実装・409対応）を進行中
+  - OpenAPI: Issue #8（OpenAPI整合の残タスク）を次段で対応
+  - 監査: Issue #10（trace_id/target_id設計）を検討中
 
 ## 3. 完了条件
 

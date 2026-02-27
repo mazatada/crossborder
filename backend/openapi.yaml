@@ -605,9 +605,10 @@ components:
             details:
               type: object
               properties:
-                line:       { type: integer, nullable: true }
-                column:     { type: integer, nullable: true }
-                expression: { type: string }
+                line:       { type: integer, nullable: true, description: "Optional. Only present for JSON parsing errors." }
+                column:     { type: integer, nullable: true, description: "Optional. Only present for JSON parsing errors." }
+                path:       { type: string, nullable: true, description: "Optional json-path to the offending rule node." }
+                expression: { type: string, nullable: true }
                 hint:       { type: string, nullable: true }
 
     HSRuleEffect:
@@ -925,7 +926,110 @@ components:
               rule:    { type: string }
               message: { type: string }
 
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string, format: uri }
+        events: { type: array, items: { type: string } }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        secret: { type: string, nullable: true, description: "Only returned on creation" }
+
+    WebhookTestResult:
+      type: object
+      properties:
+        status: { type: string }
+        webhook_id: { type: integer }
+        delivery_status: { type: string }
+
+    WebhookDLQEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        webhook_id: { type: integer }
+        event_type: { type: string }
+        trace_id: { type: string, nullable: true }
+        attempts: { type: integer }
+        last_error: { type: string, nullable: true }
+        last_status_code: { type: integer, nullable: true }
+        replayed: { type: boolean }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+
+    EventHSClassified:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "HS_CLASSIFIED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        product:
+          type: object
+          properties:
+            product_id: { type: string }
+            category: { type: string }
+            origin_country: { type: string }
+        hs:
+          type: object
+          properties:
+            candidates:
+              type: array
+              items: { $ref: '#/components/schemas/HSClassificationCandidate' }
+            final_code: { type: string }
+            required_uom: { type: string }
+            review_required: { type: boolean }
+
+    EventDocsPackaged:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "DOCS_PACKAGED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        job_id: { type: string }
+        artifacts:
+          type: array
+          items: { $ref: '#/components/schemas/Artifact' }
+        uom_check:
+          type: object
+          properties:
+            required: { type: string }
+            invoice: { type: string }
+            valid: { type: boolean }
+
+    EventPNSubmitted:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "PN_SUBMITTED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        job_id: { type: string }
+        status: { type: string }
+
+    OrderStatusUpdate:
+      type: object
+      required: [status, ts]
+      properties:
+        status:
+          type: string
+          enum: [PAID, CANCELED]
+        ts:
+          type: string
+          format: date-time
+        customer_region:
+          type: string
+          nullable: true
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
 security: []   # 将来: bearerAuth 等を追加予定
+paths:
   /v1/tariffs/{destination_country}/{hs_code}:
     get:
       tags: [Tariffs]
@@ -963,6 +1067,11 @@ security: []   # 将来: bearerAuth 等を追加予定
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error404' }
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
 
   /v1/tariffs/calculate:
     post:
@@ -989,3 +1098,238 @@ security: []   # 将来: bearerAuth 等を追加予定
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error404' }
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
+
+  /v1/hs-codes:
+    get:
+      tags: [HS]
+      summary: HSコード検索
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+        - in: query
+          name: chapter
+          required: false
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: HSコード一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCodeSearchResult' }
+
+  /v1/hs-codes/{code}:
+    get:
+      tags: [HS]
+      summary: HSコード詳細取得
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+      responses:
+        '200':
+          description: HSコード詳細
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCode' }
+        '404':
+          description: HSコードが存在しない
+
+  /v1/integrations/webhooks:
+    post:
+      tags: [Integrations]
+      summary: Webhook登録
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url: { type: string, format: uri }
+                events: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+    get:
+      tags: [Integrations]
+      summary: Webhook一覧
+      responses:
+        '200':
+          description: 一覧結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookEndpoint' }
+
+  /v1/integrations/webhooks/{webhook_id}:
+    delete:
+      tags: [Integrations]
+      summary: Webhook削除（無効化）
+      parameters:
+        - in: path
+          name: webhook_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 無効化成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/webhooks/{webhook_id}/test:
+    post:
+      tags: [Integrations]
+      summary: Webhookテスト送信
+      parameters:
+        - in: path
+          name: webhook_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: テスト結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookTestResult' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/webhooks/dlq:
+    get:
+      tags: [Integrations]
+      summary: DLQ一覧
+      responses:
+        '200':
+          description: DLQ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dlq_entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookDLQEntry' }
+
+  /v1/integrations/webhooks/dlq/cleanup:
+    post:
+      tags: [Integrations]
+      summary: 期限切れDLQの削除
+      responses:
+        '200':
+          description: 削除件数
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count: { type: integer }
+
+  /v1/integrations/webhooks/dlq/{dlq_id}/replay:
+    post:
+      tags: [Integrations]
+      summary: DLQ手動再送
+      parameters:
+        - in: path
+          name: dlq_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 再送結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dlq_id: { type: integer }
+                  replayed: { type: boolean }
+                  response: {}
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/orders/{order_id}/status:
+    post:
+      tags: [Integrations]
+      summary: 注文ステータス受信
+      security:
+        - ApiKeyAuth: []
+      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderStatusUpdate' }
+      responses:
+        '202':
+          description: 受付済
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  order_id: { type: string }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '401':
+          description: 認証エラー (無効なAPIキー)

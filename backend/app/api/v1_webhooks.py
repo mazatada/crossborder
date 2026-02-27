@@ -4,11 +4,13 @@ from app.models import WebhookEndpoint, WebhookDLQ
 from app.audit import record_event
 import secrets
 from datetime import datetime
+from app.auth import require_api_key
 
 bp = Blueprint("v1_webhooks", __name__, url_prefix="/v1/integrations")
 
 
 @bp.post("/webhooks")
+@require_api_key
 def register_webhook():
     """Register a new webhook endpoint"""
     data = request.get_json(silent=True) or {}
@@ -74,6 +76,7 @@ def register_webhook():
 
 
 @bp.get("/webhooks")
+@require_api_key
 def list_webhooks():
     """List all registered webhooks"""
     webhooks = db.session.query(WebhookEndpoint).filter_by(active=True).all()
@@ -98,6 +101,7 @@ def list_webhooks():
 
 
 @bp.delete("/webhooks/<int:webhook_id>")
+@require_api_key
 def delete_webhook(webhook_id: int):
     """Delete (deactivate) a webhook endpoint"""
     data = request.get_json(silent=True) or {}
@@ -126,6 +130,7 @@ def delete_webhook(webhook_id: int):
 
 
 @bp.post("/webhooks/<int:webhook_id>/test")
+@require_api_key
 def test_webhook(webhook_id: int):
     """Test webhook delivery with a sample payload"""
     from app.integrations.webhook_dispatcher import dispatch_webhook
@@ -172,6 +177,7 @@ def test_webhook(webhook_id: int):
 
 
 @bp.get("/webhooks/dlq")
+@require_api_key
 def list_dlq():
     """List all DLQ entries"""
     dlq_entries = (
@@ -205,6 +211,7 @@ def list_dlq():
 
 
 @bp.post("/webhooks/dlq/<int:dlq_id>/replay")
+@require_api_key
 def replay_dlq(dlq_id: int):
     """Manually replay a DLQ entry"""
     from app.integrations.webhook_dispatcher import dispatch_webhook
@@ -284,6 +291,7 @@ def replay_dlq(dlq_id: int):
 
 
 @bp.post("/webhooks/dlq/cleanup")
+@require_api_key
 def cleanup_dlq():
     """Clean up expired DLQ entries (72 hours old)"""
     data = request.get_json(silent=True) or {}
