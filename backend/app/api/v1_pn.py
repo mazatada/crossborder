@@ -52,7 +52,7 @@ def fda_prior_notice():
         event="JOB_QUEUED",
         trace_id=trace_id,
         target_type="job",
-        target_id=job.id,
+        target_id=str(job.id),
         type=job.type,
     )
 
