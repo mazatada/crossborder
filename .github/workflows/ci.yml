@@ -31,8 +31,10 @@ jobs:
           push: false
           load: true
           tags: crossborder-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true  # ← キャッシュ無効化（修正反映漏れ防止）
+
+      - name: Force rebuild all compose services
+        run: docker compose build --no-cache
 
       - name: Python lint (ruff)
         run: docker compose run --rm --entrypoint ruff backend check app tests
