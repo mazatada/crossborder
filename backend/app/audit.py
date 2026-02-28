@@ -161,8 +161,8 @@ def record_event(
                         "details_json": details_json_str,
                     },
                 )
-    except SQLAlchemyError:
-        # 監査は副作用。完全に黙殺して本処理を継続
+    except Exception:
+        # 監査は副作用。あらゆる例外を完全に黙殺して本処理を継続
         pass
 
 

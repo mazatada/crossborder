@@ -63,13 +63,16 @@ def docs_clearance_pack():
             },
         }), 500
 
-    # ← コミット後に独立TXで監査
-    record_event(
-        event="JOB_QUEUED",
-        trace_id=trace_id,
-        target_type="job",
-        target_id=job.id,
-        type=job.type,
-    )
+    # コミット後に独立TXで監査（失敗しても202を返す）
+    try:
+        record_event(
+            event="JOB_QUEUED",
+            trace_id=trace_id,
+            target_type="job",
+            target_id=job.id,
+            type=job.type,
+        )
+    except Exception:
+        logger.warning("record_event failed in docs_clearance_pack", exc_info=True)
 
     return jsonify({"job_id": job.id, "status": "queued"}), 202
