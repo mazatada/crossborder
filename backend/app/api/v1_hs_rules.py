@@ -59,18 +59,19 @@ def _error_rule_dsl(
     field: str,
     details: Optional[Dict[str, Any]] = None,
 ) -> Tuple[Response, int]:
-    payload = {
+    detail_dict: Dict[str, Any] = {
+        "expression": expression,
+        "hint": "Provide JSON conditions compatible with RuleEngine predicates",
+    }
+    if details:
+        detail_dict.update(details)
+    payload: Dict[str, Any] = {
         "class": "rule_dsl_error",
         "message": message,
         "field": field,
         "severity": "block",
-        "details": {
-            "expression": expression,
-            "hint": "Provide JSON conditions compatible with RuleEngine predicates",
-        },
+        "details": detail_dict,
     }
-    if details:
-        payload["details"].update(details)
     return jsonify({"error": payload}), 400
 
 
@@ -318,7 +319,7 @@ def delete_hs_rule(id: str) -> Tuple[Response, int]:
         target_id=None,
         rule_id=id,
     )
-    return Response(status=204)
+    return Response(status=204), 204
 
 
 @bp.post("/hs-rules:test")

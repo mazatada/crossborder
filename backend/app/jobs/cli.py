@@ -267,7 +267,7 @@ def requeue_job(job_id: int, *, session=None):
         event="JOB_REQUEUED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=job.id,
+        target_id=str(job.id),
         type=job.type,
     )
     return job
@@ -287,7 +287,7 @@ def cancel_job(job_id: int, *, session=None):
         event="JOB_CANCELED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=job.id,
+        target_id=str(job.id),
         type=job.type,
     )
     return job
@@ -364,7 +364,7 @@ def worker_once(session):
                         event="JOB_FAILED",
                         trace_id=job.trace_id,
                         target_type="job",
-                        target_id=job.id,
+                        target_id=str(job.id),
                         type=job.type,
                         attempts=job.attempts,
                         error_class=err["class"],
@@ -388,7 +388,7 @@ def worker_once(session):
                         event="JOB_RETRYING",
                         trace_id=job.trace_id,
                         target_type="job",
-                        target_id=job.id,
+                        target_id=str(job.id),
                         type=job.type,
                         attempts=job.attempts,
                         error_class=err["class"],
@@ -413,7 +413,7 @@ def worker_once(session):
                             event="JOB_RETRYING",
                             trace_id=job.trace_id,
                             target_type="job",
-                            target_id=job.id,
+                            target_id=str(job.id),
                             type=job.type,
                             attempts=job.attempts,
                             error_class=err["class"],
@@ -434,7 +434,7 @@ def worker_once(session):
                             event="JOB_FAILED",
                             trace_id=job.trace_id,
                             target_type="job",
-                            target_id=job.id,
+                            target_id=str(job.id),
                             type=job.type,
                             attempts=job.attempts,
                             error_class=err["class"],

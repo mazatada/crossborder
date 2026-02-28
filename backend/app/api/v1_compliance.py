@@ -34,8 +34,8 @@ def _risk_flags_to_array(risk_flags: Any) -> List[Dict[str, Any]]:
 def get_compliance(product_id: str) -> Tuple[Response, int]:
     record = (
         db.session.query(HSClassification)
-        .filter(HSClassification.product_id == product_id)
-        .order_by(HSClassification.created_at.desc())
+        .filter(HSClassification.product_id == product_id)  # type: ignore[arg-type]
+        .order_by(HSClassification.created_at.desc())  # type: ignore[attr-defined]
         .first()
     )
     if record is None:
@@ -55,14 +55,14 @@ def get_compliance(product_id: str) -> Tuple[Response, int]:
 
     docs_job = (
         db.session.query(Job)
-        .filter(Job.trace_id == record.trace_id, Job.type == "clearance_pack")
-        .order_by(Job.created_at.desc())
+        .filter(Job.trace_id == record.trace_id, Job.type == "clearance_pack")  # type: ignore[arg-type]
+        .order_by(Job.created_at.desc())  # type: ignore[attr-defined]
         .first()
     )
     pn_job = (
         db.session.query(Job)
-        .filter(Job.trace_id == record.trace_id, Job.type == "pn_submit")
-        .order_by(Job.created_at.desc())
+        .filter(Job.trace_id == record.trace_id, Job.type == "pn_submit")  # type: ignore[arg-type]
+        .order_by(Job.created_at.desc())  # type: ignore[attr-defined]
         .first()
     )
 
