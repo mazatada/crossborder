@@ -1,7 +1,7 @@
 import json
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from flask import Blueprint, jsonify, request, Response
 from app.auth import require_api_key
