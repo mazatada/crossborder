@@ -32,15 +32,23 @@ def create_app():
     app.config.from_object(Config)
 
     # ── DB テーブル自動作成（Alembic 非適用環境のフォールバック）──
-    # models.py をインポートすることで Base.metadata にテーブル定義を登録
     import app.models  # noqa: F401
     from app.db import init_db
     try:
         init_db()
     except Exception:
-        # CI/テスト等でDB未到達の場合は致命的ではないため続行
         import logging
         logging.getLogger(__name__).warning("init_db failed (non-fatal)", exc_info=True)
+
+    # ── セッションライフサイクル管理 ──
+    # scoped_session をリクエスト終了時に確実にクリーンアップ。
+    # これがないと、前リクエストで壊れたセッション状態が次リクエストに伝播し
+    # 500エラーを引き起こす（例: classifyのcommit失敗 → docsの500）。
+    from app.db import db as _db
+
+    @app.teardown_appcontext
+    def shutdown_session(exception=None):
+        _db.session.remove()
 
     app.register_blueprint(v1_misc.bp)
     app.register_blueprint(v1_jobs.bp)
