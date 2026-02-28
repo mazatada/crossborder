@@ -6,6 +6,7 @@ on:
       - main
       - master
       - feat/** # keep CI active on feature branches
+      - fix/**  # keep CI active on fix branches
   pull_request:
     branches:
       - main
