@@ -31,6 +31,17 @@ def create_app():
     CORS(app)
     app.config.from_object(Config)
 
+    # ── DB テーブル自動作成（Alembic 非適用環境のフォールバック）──
+    # models.py をインポートすることで Base.metadata にテーブル定義を登録
+    import app.models  # noqa: F401
+    from app.db import init_db
+    try:
+        init_db()
+    except Exception:
+        # CI/テスト等でDB未到達の場合は致命的ではないため続行
+        import logging
+        logging.getLogger(__name__).warning("init_db failed (non-fatal)", exc_info=True)
+
     app.register_blueprint(v1_misc.bp)
     app.register_blueprint(v1_jobs.bp)
     app.register_blueprint(v1_translate.bp)
