@@ -181,15 +181,23 @@ def _enqueue_webhook_jobs(session, job: Job, result: dict) -> List[Job]:
     }
     # result から ID 系だけ抽出して載せる（PII 防止）
     if isinstance(result, dict):
-        for safe_key in ("id", "product_id", "order_id", "package_id", "classification_id"):
+        for safe_key in (
+            "id",
+            "product_id",
+            "order_id",
+            "package_id",
+            "classification_id",
+        ):
             if safe_key in result:
                 webhook_payload[safe_key] = result[safe_key]
 
     # --- DB から登録済み WebhookEndpoint を引く ---
     try:
-        endpoints = session.query(WebhookEndpoint).filter(
-            WebhookEndpoint.active == True  # noqa: E712
-        ).all()
+        endpoints = (
+            session.query(WebhookEndpoint)
+            .filter(WebhookEndpoint.active == True)  # noqa: E712
+            .all()
+        )
     except Exception:
         # WebhookEndpoint テーブルが未構築等の場合は空リストで続行
         endpoints = []

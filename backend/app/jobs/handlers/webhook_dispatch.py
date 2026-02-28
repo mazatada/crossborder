@@ -50,7 +50,11 @@ def _http_post(
     except urllib_error.HTTPError as e:
         status = e.code
     except Exception as e:
-        return {"status": None, "error": str(e), "latency_ms": int((time.time() - t0) * 1000)}
+        return {
+            "status": None,
+            "error": str(e),
+            "latency_ms": int((time.time() - t0) * 1000),
+        }
     latency_ms = int((time.time() - t0) * 1000)
     return {"status": status, "latency_ms": latency_ms}
 
@@ -137,7 +141,9 @@ def handle(payload: dict, *, job_id: int, trace_id: str) -> dict:
             error=error_msg,
             attempts=attempt,
         )
-        raise NonRetriableError(f"webhook dispatch exhausted ({attempt} attempts), moved to DLQ")
+        raise NonRetriableError(
+            f"webhook dispatch exhausted ({attempt} attempts), moved to DLQ"
+        )
 
     # リトライ
     backoff = _next_backoff(attempt + 1, base=retry_base)

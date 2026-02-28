@@ -140,13 +140,18 @@ def _detect_schema(conn) -> str:
     if _is_sqlite(conn):
         # SQLite: テーブルの存在チェック
         rows = conn.execute(
-            text("SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events'")
+            text(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_events'"
+            )
         ).fetchall()
         if not rows:
             conn.execute(text(_SQLITE_CREATE_SQL))
             return "new"
         # カラム情報を取得
-        cols = [r[1] for r in conn.execute(text("PRAGMA table_info(audit_events)")).fetchall()]
+        cols = [
+            r[1]
+            for r in conn.execute(text("PRAGMA table_info(audit_events)")).fetchall()
+        ]
         if "ts" in cols and "payload" in cols:
             return "old"
         return "new"

@@ -75,25 +75,29 @@ def get_compliance(product_id: str) -> Tuple[Response, int]:
             "review_required": bool(record.review_required),
             "status": record.status or "classified",
             "reviewed_by": record.reviewed_by,
-            "reviewed_at": record.reviewed_at.isoformat()
-            if record.reviewed_at
-            else None,
+            "reviewed_at": (
+                record.reviewed_at.isoformat() if record.reviewed_at else None
+            ),
             "risk_flags": _risk_flags_to_array(record.risk_flags),
         },
         "duty": None,
-        "docs": {
-            "clearance_pack_job_id": str(docs_job.id) if docs_job else None,
-            "clearance_pack_status": docs_job.status if docs_job else None,
-            "prior_notice_required": bool(pn_job),
-            "prior_notice_status": pn_job.status if pn_job else None,
-        }
-        if (docs_job or pn_job)
-        else None,
+        "docs": (
+            {
+                "clearance_pack_job_id": str(docs_job.id) if docs_job else None,
+                "clearance_pack_status": docs_job.status if docs_job else None,
+                "prior_notice_required": bool(pn_job),
+                "prior_notice_status": pn_job.status if pn_job else None,
+            }
+            if (docs_job or pn_job)
+            else None
+        ),
         "audit": {
             "last_updated_by": record.reviewed_by,
-            "last_updated_at": record.updated_at.isoformat()
-            if record.updated_at
-            else record.created_at.isoformat(),
+            "last_updated_at": (
+                record.updated_at.isoformat()
+                if record.updated_at
+                else record.created_at.isoformat()
+            ),
         },
     }
     return jsonify(response), 200
