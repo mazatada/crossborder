@@ -12,7 +12,7 @@ import json
 import uuid
 import contextvars
 from copy import deepcopy
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Optional, Set
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
