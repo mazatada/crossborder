@@ -72,6 +72,10 @@ test.describe("backend API smoke", () => {
 				invoice_payload: { lines: [{ sku: "SKU1", qty: 1 }] },
 			},
 		});
+		if (docsResp.status() !== 202) {
+			const errText = await docsResp.text();
+			console.error(`[DEBUG] docs/clearance-pack status=${docsResp.status()} body=${errText}`);
+		}
 		expect(docsResp.status()).toBe(202);
 		const docsBody = await docsResp.json();
 		expect(docsBody.status).toBe("queued");

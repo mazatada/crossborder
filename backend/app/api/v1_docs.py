@@ -3,6 +3,10 @@ from sqlalchemy import func
 from app.db import db
 from app.models import Job
 from app.audit import record_event
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("v1_docs", __name__, url_prefix="/v1")
 
@@ -29,22 +33,35 @@ def docs_clearance_pack():
             400,
         )
 
-    job = Job(
-        type="clearance_pack",
-        status="queued",
-        attempts=0,
-        next_run_at=func.now(),
-        payload_json={
-            "traceId": trace_id,
-            "hs_code": hs_code,
-            "required_uom": required,
-            "invoice_uom": invoice,
-            "invoice_payload": data.get("invoice_payload"),
-        },
-        trace_id=trace_id,
-    )
-    db.session.add(job)
-    db.session.commit()
+    try:
+        job = Job(
+            type="clearance_pack",
+            status="queued",
+            attempts=0,
+            next_run_at=func.now(),
+            payload_json={
+                "traceId": trace_id,
+                "hs_code": hs_code,
+                "required_uom": required,
+                "invoice_uom": invoice,
+                "invoice_payload": data.get("invoice_payload"),
+            },
+            trace_id=trace_id,
+        )
+        db.session.add(job)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        tb = traceback.format_exc()
+        logger.error(f"docs/clearance-pack DB error: {e}\n{tb}")
+        return jsonify({
+            "status": "error",
+            "error": {
+                "code": "DB_ERROR",
+                "message": str(e),
+                "detail": tb,
+            },
+        }), 500
 
     # ← コミット後に独立TXで監査
     record_event(
