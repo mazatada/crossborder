@@ -68,10 +68,12 @@ def receive_order_status(order_id: str):
         )
 
     # Check for existing record to ensure idempotency
-    existing = db.session.query(OrderStatus).filter_by(
-        order_id=order_id, status=status
-    ).first()
-    
+    existing = (
+        db.session.query(OrderStatus)
+        .filter_by(order_id=order_id, status=status)
+        .first()
+    )
+
     if existing:
         # Idempotent return explicitly without doing anything
         return jsonify({"status": "accepted", "order_id": order_id}), 202

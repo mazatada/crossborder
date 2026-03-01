@@ -55,7 +55,11 @@ def test_register_webhook(client, api_key_header):
 
 def test_register_webhook_invalid_url(client, api_key_header):
     """Test webhook registration with invalid URL"""
-    resp = client.post("/v1/integrations/webhooks", headers=api_key_header, json={"events": ["HS_CLASSIFIED"]})
+    resp = client.post(
+        "/v1/integrations/webhooks",
+        headers=api_key_header,
+        json={"events": ["HS_CLASSIFIED"]},
+    )
 
     assert resp.status_code == 400
     data = resp.get_json()
@@ -93,7 +97,9 @@ def test_delete_webhook(client, api_key_header):
 
     # Delete it
     resp = client.delete(
-        f"/v1/integrations/webhooks/{webhook_id}", headers=api_key_header, json={"traceId": "TEST-TRACE-002"}
+        f"/v1/integrations/webhooks/{webhook_id}",
+        headers=api_key_header,
+        json={"traceId": "TEST-TRACE-002"},
     )
 
     assert resp.status_code == 200
@@ -258,7 +264,9 @@ def test_cleanup_dlq(client, api_key_header):
     db.session.commit()
 
     resp = client.post(
-        "/v1/integrations/webhooks/dlq/cleanup", headers=api_key_header, json={"traceId": "TEST-TRACE-007"}
+        "/v1/integrations/webhooks/dlq/cleanup",
+        headers=api_key_header,
+        json={"traceId": "TEST-TRACE-007"},
     )
 
     assert resp.status_code == 200

@@ -18,12 +18,15 @@ def _app():
     from app.factory import create_app
 
     app = create_app()
-    app.config.update({
-        "TESTING": True,
-        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-        "SECRET_KEY": "test-secret-key"
-    })
+    app.config.update(
+        {
+            "TESTING": True,
+            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            "SECRET_KEY": "test-secret-key",
+        }
+    )
     return app
+
 
 @pytest.fixture(scope="function")
 def app(_app):
@@ -52,6 +55,7 @@ def app(_app):
         # SQLite needs Integer PK for autoincrement; adjust Job.id just for test schema.
         from app.models import Job
         from sqlalchemy import Integer
+
         Job.__table__.columns["id"].type = Integer()
         # 清掃
         sqlite_session.remove()
@@ -70,14 +74,17 @@ def app(_app):
     app_db.db.engine = original_db_engine
     app_db.db.session = original_db_session
 
+
 @pytest.fixture(scope="function")
 def client(app):
     return app.test_client()
+
 
 @pytest.fixture(scope="function")
 def db_session(app):
     """DB session fixture (function scope)"""
     from app.db import db
+
     return db.session
 
 

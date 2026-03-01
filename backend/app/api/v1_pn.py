@@ -55,14 +55,19 @@ def fda_prior_notice():
         db.session.rollback()
         tb = traceback.format_exc()
         logger.error(f"fda/prior-notice DB error: {e}\n{tb}")
-        return jsonify({
-            "status": "error",
-            "error": {
-                "code": "DB_ERROR",
-                "message": str(e),
-                "detail": tb,
-            },
-        }), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": {
+                        "code": "DB_ERROR",
+                        "message": str(e),
+                        "detail": tb,
+                    },
+                }
+            ),
+            500,
+        )
 
     # 監査（失敗しても202を返す）
     try:

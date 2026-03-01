@@ -211,8 +211,9 @@ class TestClassifyHSAPI:
         data = response.get_json()
         assert "violations" in data
         # バリデーションではなく、分類失敗のviolationを期待
-        assert any(v.get("field") in ["classification", "product"] for v in data["violations"])
-
+        assert any(
+            v.get("field") in ["classification", "product"] for v in data["violations"]
+        )
 
     def test_classify_without_api_key(self, client):
         """APIキーなし (401エラー)"""

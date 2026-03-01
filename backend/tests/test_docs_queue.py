@@ -4,8 +4,6 @@ from app.db import db
 from app.models import Job
 
 
-
-
 @pytest.mark.integration
 def test_docs_clearance_pack_queues_job(client, monkeypatch):
     monkeypatch.setattr("app.api.v1_docs.record_event", lambda **kwargs: None)

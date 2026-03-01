@@ -26,16 +26,10 @@ def test_hs_review_get_and_put(client, api_key_header, db_session):
     product_id = "prod_review_001"
     _create_classification(client, api_key_header, trace_id, product_id)
 
-    record = (
-        db_session.query(HSClassification)
-        .filter_by(trace_id=trace_id)
-        .first()
-    )
+    record = db_session.query(HSClassification).filter_by(trace_id=trace_id).first()
     assert record is not None
 
-    resp = client.get(
-        f"/v1/hs-classifications/{record.id}", headers=api_key_header
-    )
+    resp = client.get(f"/v1/hs-classifications/{record.id}", headers=api_key_header)
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["trace_id"] == trace_id
@@ -92,11 +86,7 @@ def test_hs_review_sets_reviewed_at(client, api_key_header, db_session):
     product_id = "prod_review_002"
     _create_classification(client, api_key_header, trace_id, product_id)
 
-    record = (
-        db_session.query(HSClassification)
-        .filter_by(trace_id=trace_id)
-        .first()
-    )
+    record = db_session.query(HSClassification).filter_by(trace_id=trace_id).first()
     assert record is not None
     assert record.reviewed_at is None
 
@@ -116,11 +106,7 @@ def test_hs_review_conflict_when_locked(client, api_key_header, db_session):
     product_id = "prod_review_locked"
     _create_classification(client, api_key_header, trace_id, product_id)
 
-    record = (
-        db_session.query(HSClassification)
-        .filter_by(trace_id=trace_id)
-        .first()
-    )
+    record = db_session.query(HSClassification).filter_by(trace_id=trace_id).first()
     assert record is not None
     record.status = "locked"
     db_session.add(record)

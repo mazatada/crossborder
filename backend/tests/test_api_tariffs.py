@@ -1,6 +1,3 @@
-import pytest
-
-
 def test_get_tariff_ok(client, api_key_header):
     resp = client.get("/v1/tariffs/US/1905.90", headers=api_key_header)
     assert resp.status_code == 200

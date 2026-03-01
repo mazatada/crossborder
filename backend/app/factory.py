@@ -34,10 +34,12 @@ def create_app():
     # ── DB テーブル自動作成（Alembic 非適用環境のフォールバック）──
     import app.models  # noqa: F401
     from app.db import init_db
+
     try:
         init_db()
     except Exception:
         import logging
+
         logging.getLogger(__name__).warning("init_db failed (non-fatal)", exc_info=True)
 
     # ── セッションライフサイクル管理 ──

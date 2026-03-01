@@ -6,7 +6,7 @@ HS分類結果のキャッシュモジュール
 バックエンドとしてInMemoryとRedisをサポートします。
 """
 
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 from abc import ABC, abstractmethod
 import json
 import logging
@@ -218,11 +218,7 @@ class HSCache:
             ),
             "ingredients": limited_ingredients,
             "process": sorted(
-                [
-                    str(p).lower()
-                    for p in process_raw[:5]
-                    if p is not None
-                ],
+                [str(p).lower() for p in process_raw[:5] if p is not None],
                 key=str,
             ),  # 5個まで
             "rules_version": rules_version,  # ルールバージョンを含める

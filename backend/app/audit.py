@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
 
 from app.db import db
 
@@ -48,7 +47,9 @@ def _detect_schema(conn) -> str:
         ).fetchall()
         if not rows:
             # SQLite用の簡易テーブル作成
-            conn.execute(text("""
+            conn.execute(
+                text(
+                    """
                 CREATE TABLE IF NOT EXISTS audit_events (
                   id           INTEGER PRIMARY KEY AUTOINCREMENT,
                   at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -58,7 +59,9 @@ def _detect_schema(conn) -> str:
                   target_id    INTEGER,
                   details_json TEXT
                 )
-            """))
+            """
+                )
+            )
             return "new"
         cols = [
             r[1]
@@ -96,6 +99,7 @@ def record_event(
     監査イベントを書き込む。メイン処理とは独立TXで保存し、失敗しても絶対に本処理を止めない。
     """
     import uuid
+
     if not trace_id:
         trace_id = f"audit-{uuid.uuid4().hex[:8]}"
 
@@ -132,7 +136,7 @@ def record_event(
                 details_json_str = (
                     json.dumps(details, ensure_ascii=False) if details else None
                 )
-                
+
                 # target_id は BIGINT/INTEGER なので数値変換を試みる
                 t_id_int = None
                 try:
@@ -141,7 +145,9 @@ def record_event(
                 except (ValueError, TypeError):
                     # 文字列IDの場合は details_json に退避
                     if details_json_str is None:
-                        details_json_str = json.dumps({"target_key": effective_target}, ensure_ascii=False)
+                        details_json_str = json.dumps(
+                            {"target_key": effective_target}, ensure_ascii=False
+                        )
                     else:
                         d = details.copy()
                         d["target_key"] = effective_target

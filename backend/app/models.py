@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from sqlalchemy import UniqueConstraint
 from .db import db, Base
 
 
@@ -79,13 +80,9 @@ class WebhookEndpoint(Base):
     )  # type: ignore
 
 
-from sqlalchemy import UniqueConstraint
-
 class OrderStatus(Base):
     __tablename__ = "order_statuses"
-    __table_args__ = (
-        UniqueConstraint("order_id", "status", name="uq_order_status"),
-    )
+    __table_args__ = (UniqueConstraint("order_id", "status", name="uq_order_status"),)
     id: int = db.Column(db.Integer, primary_key=True, autoincrement=True)  # type: ignore
     order_id: str = db.Column(db.String(128), nullable=False, index=True)  # type: ignore
     status: str = db.Column(db.String(32), nullable=False)  # type: ignore

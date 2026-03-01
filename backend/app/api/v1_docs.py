@@ -54,14 +54,19 @@ def docs_clearance_pack():
         db.session.rollback()
         tb = traceback.format_exc()
         logger.error(f"docs/clearance-pack DB error: {e}\n{tb}")
-        return jsonify({
-            "status": "error",
-            "error": {
-                "code": "DB_ERROR",
-                "message": str(e),
-                "detail": tb,
-            },
-        }), 500
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": {
+                        "code": "DB_ERROR",
+                        "message": str(e),
+                        "detail": tb,
+                    },
+                }
+            ),
+            500,
+        )
 
     # コミット後に独立TXで監査（失敗しても202を返す）
     try:

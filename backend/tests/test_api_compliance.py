@@ -26,11 +26,7 @@ def test_compliance_view(client, api_key_header, db_session):
     product_id = "prod_comp_001"
     _create_classification(client, api_key_header, trace_id, product_id)
 
-    record = (
-        db_session.query(HSClassification)
-        .filter_by(trace_id=trace_id)
-        .first()
-    )
+    record = db_session.query(HSClassification).filter_by(trace_id=trace_id).first()
     assert record is not None
 
     # create docs job
@@ -70,9 +66,7 @@ def test_compliance_view(client, api_key_header, db_session):
     )
     assert resp.status_code == 202
 
-    resp = client.get(
-        f"/v1/products/{product_id}/compliance", headers=api_key_header
-    )
+    resp = client.get(f"/v1/products/{product_id}/compliance", headers=api_key_header)
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["product_id"] == product_id
@@ -93,16 +87,10 @@ def test_compliance_without_jobs(client, api_key_header, db_session):
     product_id = "prod_comp_002"
     _create_classification(client, api_key_header, trace_id, product_id)
 
-    record = (
-        db_session.query(HSClassification)
-        .filter_by(trace_id=trace_id)
-        .first()
-    )
+    record = db_session.query(HSClassification).filter_by(trace_id=trace_id).first()
     assert record is not None
 
-    resp = client.get(
-        f"/v1/products/{product_id}/compliance", headers=api_key_header
-    )
+    resp = client.get(f"/v1/products/{product_id}/compliance", headers=api_key_header)
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["product_id"] == product_id

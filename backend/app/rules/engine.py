@@ -53,9 +53,7 @@ def _validate_conditions_structure(
                     try:
                         validate_predicate_params(predicate, params)
                     except ValueError as e:
-                        raise RuleValidationError(
-                            f"Rule {rule_id}: {e}"
-                        ) from e
+                        raise RuleValidationError(f"Rule {rule_id}: {e}") from e
 
                     # カテゴリ検証
                     if predicate == "category_is":

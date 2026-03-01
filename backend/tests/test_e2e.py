@@ -51,14 +51,16 @@ def test_complete_crossborder_flow(client, api_key_header):
                     "origin_country": "JP",
                     "ingredients": [{"name": "leather", "percentage": 100}],
                     "process": ["Stitching"],
-                    "traceId": trace_id
+                    "traceId": trace_id,
                 }
             },
             headers=api_key_header,
         )
 
     if classify_resp.status_code != 200:
-        pytest.fail(f"Classify Error ({classify_resp.status_code}): {classify_resp.get_json()}")
+        pytest.fail(
+            f"Classify Error ({classify_resp.status_code}): {classify_resp.get_json()}"
+        )
 
     assert classify_resp.status_code == 200
     classify_data = classify_resp.get_json()
@@ -114,12 +116,13 @@ def test_complete_crossborder_flow(client, api_key_header):
 
     # Verify PN submission in DB (via Job)
     job = db.session.get(Job, pn_data["job_id"])
-    
+
     from app.jobs import cli
+
     cli.worker_once(db.session)
-    db.session.expire_all() # Ensure fresh data
+    db.session.expire_all()  # Ensure fresh data
     db.session.refresh(job)
-    
+
     assert job is not None
     assert job.type == "pn_submit"
 
@@ -153,15 +156,16 @@ def test_async_job_flow(client, api_key_header):
 
     # Poll job status (with timeout)
     from app.jobs import cli
+
     cli.worker_once(db.session)
-    db.session.expire_all() # Ensure fresh data
+    db.session.expire_all()  # Ensure fresh data
 
     max_attempts = 10
     for attempt in range(max_attempts):
         status_resp = client.get(f"/v1/jobs/{job_id}", headers=api_key_header)
         if status_resp.status_code != 200:
-             pytest.fail(f"Get Job Error: {status_resp.status_code}")
-        
+            pytest.fail(f"Get Job Error: {status_resp.status_code}")
+
         assert status_resp.status_code == 200
 
         status_data = status_resp.get_json()
@@ -213,7 +217,9 @@ def test_webhook_integration_flow(client, api_key_header):
 
     # Test webhook delivery
     test_resp = client.post(
-        f"/v1/integrations/webhooks/{webhook_id}/test", json={"traceId": trace_id}, headers=api_key_header
+        f"/v1/integrations/webhooks/{webhook_id}/test",
+        json={"traceId": trace_id},
+        headers=api_key_header,
     )
 
     # Note: This will fail in real environment without mock
@@ -239,10 +245,10 @@ def test_error_handling_flow(client, api_key_header):
         json={"product": {}, "traceId": trace_id},  # Empty body or missing fields
         headers=api_key_header,
     )
-    
+
     # 400 Bad Request or 422 Unprocessable Entity
-    assert classify_resp.status_code in [400, 422] 
-    
+    assert classify_resp.status_code in [400, 422]
+
     # Invalid PN submission
     pn_resp = client.post(
         "/v1/fda/prior-notice",
@@ -254,5 +260,7 @@ def test_error_handling_flow(client, api_key_header):
 
     # Verify no partial submissions in DB (using Job table)
     # PN submission creates a job, but here we expect validation error before job creation
-    pn_job = db.session.query(Job).filter_by(trace_id=trace_id, type="pn_submit").first()
+    pn_job = (
+        db.session.query(Job).filter_by(trace_id=trace_id, type="pn_submit").first()
+    )
     assert pn_job is None

@@ -254,6 +254,7 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
 
     # cli.REGISTRY を確実にパッチするために sys.modules から取得
     import sys
+
     cli_module = sys.modules["app.jobs.cli"]
     monkeypatch.setitem(cli_module.REGISTRY, "clearance_pack", _mock_handler_raising)
     monkeypatch.setitem(cli_module.REGISTRY, "pn_submit", _mock_handler_raising)
@@ -360,6 +361,7 @@ def test_webhook_retry_respects_max_attempts(monkeypatch):
     )
     # Config monkeypatch to fail after 1 attempt
     import sys
+
     cli_module = sys.modules["app.jobs.cli"]
     monkeypatch.setattr(cli_module, "MAX_ATTEMPTS", 1)
 
@@ -382,13 +384,13 @@ def test_webhook_retry_respects_max_attempts(monkeypatch):
 
     # first attempt -> retrying (attempts=1), second -> failed (attempts>=max)
     cli.worker_once(db.session)
-    
+
     # データをリフレッシュして next_run_at を過去に戻す (そうしないと拾われない)
     refreshed_retry = db.session.get(Job, retry_job.id)
     refreshed_retry.next_run_at = datetime.utcnow() - timedelta(seconds=1)
     db.session.add(refreshed_retry)
     db.session.commit()
-    
+
     cli.worker_once(db.session)
 
     refreshed_retry = db.session.get(Job, retry_job.id)

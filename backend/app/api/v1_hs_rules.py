@@ -19,7 +19,9 @@ def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def _error_400(message: str, field: str, error_class: str = "invalid_argument") -> Tuple[Response, int]:
+def _error_400(
+    message: str, field: str, error_class: str = "invalid_argument"
+) -> Tuple[Response, int]:
     return (
         jsonify(
             {
@@ -119,7 +121,9 @@ def _load_rules() -> None:
                 "description": rule.get("description"),
                 "priority": rule.get("priority", 0),
                 "scope": rule.get("scope"),
-                "condition_dsl": json.dumps(rule.get("conditions", {}), ensure_ascii=False),
+                "condition_dsl": json.dumps(
+                    rule.get("conditions", {}), ensure_ascii=False
+                ),
                 "effect": {
                     "hs_code": rule.get("hs_code"),
                     "weight": rule.get("weight", 1.0),
@@ -176,7 +180,10 @@ def list_hs_rules() -> Tuple[Response, int]:
     has_more = next_offset < len(rules)
     next_cursor = str(next_offset) if has_more else None
 
-    return jsonify({"items": sliced, "has_more": has_more, "next_cursor": next_cursor}), 200
+    return (
+        jsonify({"items": sliced, "has_more": has_more, "next_cursor": next_cursor}),
+        200,
+    )
 
 
 @bp.post("/hs-rules")
@@ -192,9 +199,13 @@ def create_hs_rule() -> Tuple[Response, int]:
     if not name:
         return _error_400("name is required", "name", "missing_required")
     if not condition_dsl:
-        return _error_400("condition_dsl is required", "condition_dsl", "missing_required")
+        return _error_400(
+            "condition_dsl is required", "condition_dsl", "missing_required"
+        )
     if not effect or not effect.get("hs_code"):
-        return _error_400("effect.hs_code is required", "effect.hs_code", "missing_required")
+        return _error_400(
+            "effect.hs_code is required", "effect.hs_code", "missing_required"
+        )
     _, error = _parse_and_validate_conditions(condition_dsl, "condition_dsl")
     if error:
         return error
@@ -263,7 +274,15 @@ def update_hs_rule(id: str) -> Tuple[Response, int]:
             return error
 
     bump = any(field in data for field in version_bump_fields)
-    for field in ["name", "description", "priority", "scope", "condition_dsl", "effect", "status"]:
+    for field in [
+        "name",
+        "description",
+        "priority",
+        "scope",
+        "condition_dsl",
+        "effect",
+        "status",
+    ]:
         if field in data:
             rule[field] = data.get(field)
     rule["updated_by"] = data.get("updated_by") or rule.get("updated_by")
@@ -312,7 +331,9 @@ def test_hs_rule() -> Tuple[Response, int]:
     condition_dsl = rule.get("condition_dsl")
     effect = rule.get("effect", {})
     if not condition_dsl:
-        return _error_400("condition_dsl is required", "rule.condition_dsl", "missing_required")
+        return _error_400(
+            "condition_dsl is required", "rule.condition_dsl", "missing_required"
+        )
 
     conditions, error = _parse_and_validate_conditions(
         condition_dsl, "rule.condition_dsl"

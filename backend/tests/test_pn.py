@@ -4,8 +4,6 @@ from app.db import db
 from app.models import Job
 
 
-
-
 @pytest.mark.integration
 def test_prior_notice_queues_job_and_records_event(client, monkeypatch, api_key_header):
     calls = []
@@ -86,8 +84,9 @@ def test_worker_processes_prior_notice_job(monkeypatch):
     )
 
     import sys
+
     cli_module = sys.modules["app.jobs.cli"]
-    
+
     # モックハンドラの登録 (成功させる + 期待値を返す)
     monkeypatch.setitem(
         cli_module.REGISTRY,

@@ -69,7 +69,12 @@ def validate_predicate_params(predicate: str, params: Dict[str, Any]) -> None:
             raise ValueError("always does not accept params")
         return
 
-    if predicate in ("contains_any_ids", "process_any", "origin_in", "not_contains_ids"):
+    if predicate in (
+        "contains_any_ids",
+        "process_any",
+        "origin_in",
+        "not_contains_ids",
+    ):
         values = params.get("values")
         if not isinstance(values, list):
             raise ValueError(f"{predicate}.values must be a list")
@@ -83,7 +88,9 @@ def validate_predicate_params(predicate: str, params: Dict[str, Any]) -> None:
 
     if predicate == "ingredient_pct_threshold":
         if "ingredient_id" not in params or "min_pct" not in params:
-            raise ValueError("ingredient_pct_threshold requires ingredient_id and min_pct")
+            raise ValueError(
+                "ingredient_pct_threshold requires ingredient_id and min_pct"
+            )
         if not isinstance(params.get("ingredient_id"), str):
             raise ValueError("ingredient_pct_threshold.ingredient_id must be a string")
         if not isinstance(params.get("min_pct"), (int, float)):
