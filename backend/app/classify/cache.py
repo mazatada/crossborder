@@ -158,10 +158,13 @@ class RedisCache(CacheBackend):
             logger.error(f"Redis clear error: {e}")
 
 
+_SHARED_IN_MEMORY_CACHE = None
+
 class HSCache:
     """HSキャッシュマネージャー"""
 
     def __init__(self, backend: Optional[CacheBackend] = None):
+        global _SHARED_IN_MEMORY_CACHE
         if backend:
             self.backend = backend
         else:
@@ -178,7 +181,9 @@ class HSCache:
                 logger.warning(
                     f"Failed to connect to Redis ({e}), falling back to InMemoryCache"
                 )
-                self.backend = InMemoryCache()
+                if _SHARED_IN_MEMORY_CACHE is None:
+                    _SHARED_IN_MEMORY_CACHE = InMemoryCache()
+                self.backend = _SHARED_IN_MEMORY_CACHE
 
     def generate_cache_key(self, product_data: Dict, rules_version: str) -> str:
         """キャッシュキーを生成 (ルールバージョン含む)"""

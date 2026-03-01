@@ -8,7 +8,7 @@ from app.jobs import cli
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
+def test_scheduler_moves_stuck_running_to_retrying(app, monkeypatch):
     monkeypatch.setattr(cli, "VISIBILITY_TIMEOUT_SEC", 0)
 
     job = Job(
@@ -36,7 +36,7 @@ def test_scheduler_moves_stuck_running_to_retrying(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_worker_retries_on_handler_error(monkeypatch):
+def test_worker_retries_on_handler_error(app, monkeypatch):
     record_calls = []
 
     def _record_event(**kwargs):
@@ -74,7 +74,7 @@ def test_worker_retries_on_handler_error(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_worker_heartbeat_called_before_handler(monkeypatch):
+def test_worker_heartbeat_called_before_handler(app, monkeypatch):
     calls = []
 
     def _heartbeat(session, job):
@@ -118,7 +118,7 @@ def test_worker_heartbeat_called_before_handler(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_requeue_and_cancel_paths(monkeypatch):
+def test_requeue_and_cancel_paths(app, monkeypatch):
     record_calls = []
     monkeypatch.setattr(
         cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
@@ -152,7 +152,7 @@ def test_requeue_and_cancel_paths(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_non_retriable_error_marks_failed(monkeypatch):
+def test_non_retriable_error_marks_failed(app, monkeypatch):
     record_calls = []
 
     def _record_event(**kwargs):
@@ -191,7 +191,7 @@ def test_non_retriable_error_marks_failed(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
+def test_webhook_failure_is_recorded_but_job_remains_succeeded(app, monkeypatch):
     record_calls = []
 
     def _record_event(**kwargs):
@@ -240,7 +240,7 @@ def test_webhook_failure_is_recorded_but_job_remains_succeeded(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_non_retriable_raised_from_handlers(monkeypatch):
+def test_non_retriable_raised_from_handlers(app, monkeypatch):
     record_calls = []
     monkeypatch.setattr(
         cli, "record_event", lambda **kwargs: record_calls.append(kwargs)
@@ -300,7 +300,7 @@ def test_non_retriable_raised_from_handlers(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_webhook_failure_enqueues_retry_job(monkeypatch):
+def test_webhook_failure_enqueues_retry_job(app, monkeypatch):
     record_calls = []
 
     def _record_event(**kwargs):
@@ -347,7 +347,7 @@ def test_webhook_failure_enqueues_retry_job(monkeypatch):
 
 @pytest.mark.integration
 @pytest.mark.postgres
-def test_webhook_retry_respects_max_attempts(monkeypatch):
+def test_webhook_retry_respects_max_attempts(app, monkeypatch):
     # Directly enqueue webhook_retry job with low max_attempts=1
     monkeypatch.setattr("app.jobs.cli._heartbeat", lambda *a, **k: None)
     monkeypatch.setattr("app.jobs.cli.record_event", lambda **kw: True, raising=False)

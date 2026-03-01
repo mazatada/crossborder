@@ -4,6 +4,15 @@ HS分類器のユニットテスト
 
 import pytest
 from app.rules.engine import RuleEngine
+from app.rules.predicates import (
+    contains_any_ids,
+    process_any,
+    origin_in,
+    category_is,
+    not_contains_ids,
+    ingredient_pct_threshold,
+    always,
+)
 from app.classify import HSClassifier, ClassificationError
 
 
@@ -12,68 +21,56 @@ class TestRuleEngine:
 
     def test_contains_any_ids(self):
         """contains_any_ids述語のテスト"""
-        engine = RuleEngine()
-
         ingredients = [
             {"id": "ing_wheat_flour", "pct": 30.0},
             {"id": "ing_sugar", "pct": 25.0},
         ]
 
-        assert engine._contains_any_ids(ingredients, ["ing_wheat_flour"]) is True
-        assert engine._contains_any_ids(ingredients, ["ing_cocoa"]) is False
-        assert engine._contains_any_ids(ingredients, ["ing_sugar", "ing_cocoa"]) is True
-        assert engine._contains_any_ids([], ["ing_wheat_flour"]) is False
-        assert engine._contains_any_ids(None, ["ing_wheat_flour"]) is False
+        assert contains_any_ids(ingredients, ["ing_wheat_flour"]) is True
+        assert contains_any_ids(ingredients, ["ing_cocoa"]) is False
+        assert contains_any_ids(ingredients, ["ing_sugar", "ing_cocoa"]) is True
+        assert contains_any_ids([], ["ing_wheat_flour"]) is False
+        assert contains_any_ids(None, ["ing_wheat_flour"]) is False
 
     def test_process_any(self):
         """process_any述語のテスト"""
-        engine = RuleEngine()
-
         processes = ["baking", "packaging"]
 
-        assert engine._process_any(processes, ["baking"]) is True
-        assert engine._process_any(processes, ["roasting"]) is False
-        assert engine._process_any(processes, ["BAKING"]) is True  # 大文字小文字無視
-        assert engine._process_any([], ["baking"]) is False
-        assert engine._process_any(None, ["baking"]) is False
+        assert process_any(processes, ["baking"]) is True
+        assert process_any(processes, ["roasting"]) is False
+        assert process_any(processes, ["BAKING"]) is True  # 大文字小文字無視
+        assert process_any([], ["baking"]) is False
+        assert process_any(None, ["baking"]) is False
 
     def test_origin_in(self):
         """origin_in述語のテスト"""
-        engine = RuleEngine()
-
-        assert engine._origin_in("JP", ["JP", "US"]) is True
-        assert engine._origin_in("jp", ["JP", "US"]) is True  # 大文字小文字無視
-        assert engine._origin_in("CN", ["JP", "US"]) is False
-        assert engine._origin_in(None, ["JP"]) is False
+        assert origin_in("JP", ["JP", "US"]) is True
+        assert origin_in("jp", ["JP", "US"]) is True  # 大文字小文字無視
+        assert origin_in("CN", ["JP", "US"]) is False
+        assert origin_in(None, ["JP"]) is False
 
     def test_category_is(self):
         """category_is述語のテスト"""
-        engine = RuleEngine()
-
-        assert engine._category_is("confectionery", "confectionery") is True
+        assert category_is("confectionery", "confectionery") is True
         assert (
-            engine._category_is("Confectionery", "confectionery") is True
+            category_is("Confectionery", "confectionery") is True
         )  # 大文字小文字無視
-        assert engine._category_is("beverages", "confectionery") is False
-        assert engine._category_is(None, "confectionery") is False
+        assert category_is("beverages", "confectionery") is False
+        assert category_is(None, "confectionery") is False
 
     def test_not_contains_ids(self):
         """not_contains_ids述語のテスト"""
-        engine = RuleEngine()
-
         ingredients = [
             {"id": "ing_wheat_flour", "pct": 30.0},
             {"id": "ing_sugar", "pct": 25.0},
         ]
 
-        assert engine._not_contains_ids(ingredients, ["ing_cocoa"]) is True
-        assert engine._not_contains_ids(ingredients, ["ing_wheat_flour"]) is False
-        assert engine._not_contains_ids([], ["ing_cocoa"]) is True
+        assert not_contains_ids(ingredients, ["ing_cocoa"]) is True
+        assert not_contains_ids(ingredients, ["ing_wheat_flour"]) is False
+        assert not_contains_ids([], ["ing_cocoa"]) is True
 
     def test_ingredient_pct_threshold(self):
         """ingredient_pct_threshold述語のテスト"""
-        engine = RuleEngine()
-
         ingredients = [
             {"id": "ing_wheat_flour", "pct": 35.0},
             {"id": "ing_sugar", "pct": 25.0},
@@ -81,31 +78,30 @@ class TestRuleEngine:
 
         # 最小値のみ
         assert (
-            engine._ingredient_pct_threshold(ingredients, "ing_wheat_flour", 30.0)
+            ingredient_pct_threshold(ingredients, "ing_wheat_flour", 30.0)
             is True
         )
         assert (
-            engine._ingredient_pct_threshold(ingredients, "ing_wheat_flour", 40.0)
+            ingredient_pct_threshold(ingredients, "ing_wheat_flour", 40.0)
             is False
         )
 
         # 範囲指定
         assert (
-            engine._ingredient_pct_threshold(ingredients, "ing_sugar", 20.0, 30.0)
+            ingredient_pct_threshold(ingredients, "ing_sugar", 20.0, 30.0)
             is True
         )
         assert (
-            engine._ingredient_pct_threshold(ingredients, "ing_sugar", 30.0, 40.0)
+            ingredient_pct_threshold(ingredients, "ing_sugar", 30.0, 40.0)
             is False
         )
 
         # 存在しない成分
-        assert engine._ingredient_pct_threshold(ingredients, "ing_cocoa", 10.0) is False
+        assert ingredient_pct_threshold(ingredients, "ing_cocoa", 10.0) is False
 
     def test_always(self):
         """always述語のテスト"""
-        engine = RuleEngine()
-        assert engine._always() is True
+        assert always() is True
 
     def test_rule_evaluation(self):
         """ルール評価のテスト"""

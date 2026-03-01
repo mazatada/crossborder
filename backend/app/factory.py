@@ -32,7 +32,7 @@ def create_app():
     app.config.from_object(Config)
 
     # ── DB テーブル自動作成（Alembic 非適用環境のフォールバック）──
-    import app.models  # noqa: F401
+    from app import models  # noqa: F401
     from app.db import init_db
 
     try:
