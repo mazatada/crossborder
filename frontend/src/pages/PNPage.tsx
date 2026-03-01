@@ -55,7 +55,7 @@ export default function PNPage() {
 			<Paper elevation={1} sx={{ p: 2 }}>
 				<Grid container spacing={2}>
 					{/* トレース */}
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<TextField
 							label="Trace ID"
 							value={traceId}
@@ -65,7 +65,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* 製品名 */}
-					<Grid item xs={12} sm={6} md={4}>
+					<Grid size={{ xs: 12, sm: 6, md: 4 }}>
 						<TextField
 							label="Product Name"
 							value={name}
@@ -75,7 +75,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* 説明（長め） */}
-					<Grid item xs={12} md={8}>
+					<Grid size={{ xs: 12, md: 8 }}>
 						<TextField
 							label="Description"
 							value={desc}
@@ -87,7 +87,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* 原産国 */}
-					<Grid item xs={12} sm={6} md={2}>
+					<Grid size={{ xs: 12, sm: 6, md: 2 }}>
 						<TextField
 							label="Origin (ISO2)"
 							value={origin}
@@ -99,13 +99,13 @@ export default function PNPage() {
 					</Grid>
 
 					{/* Mode */}
-					<Grid item xs={12} sm={6} md={2}>
+					<Grid size={{ xs: 12, sm: 6, md: 2 }}>
 						<TextField
 							select
 							label="Mode"
 							value={mode}
-							onChange={(event: SelectChangeEvent<"AIR" | "EXPRESS" | "SEA">) =>
-								setMode(event.target.value)
+							onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+								setMode(event.target.value as "AIR" | "EXPRESS" | "SEA")
 							}
 							fullWidth
 						>
@@ -116,7 +116,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* Port of Entry */}
-					<Grid item xs={12} sm={6} md={3}>
+					<Grid size={{ xs: 12, sm: 6, md: 3 }}>
 						<TextField
 							label="Port of Entry"
 							value={poe}
@@ -127,7 +127,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* 到着日 */}
-					<Grid item xs={12} sm={6} md={3}>
+					<Grid size={{ xs: 12, sm: 6, md: 3 }}>
 						<TextField
 							label="Arrival (YYYY-MM-DD)"
 							type="date"
@@ -139,7 +139,7 @@ export default function PNPage() {
 					</Grid>
 
 					{/* 送信ボタン行 */}
-					<Grid item xs={12}>
+					<Grid size={{ xs: 12 }}>
 						<Stack direction="row" spacing={2} justifyContent="flex-end">
 							<Button variant="contained" onClick={submit}>
 								申請
