@@ -78,7 +78,7 @@ export default function PackPage() {
 					))}
 				</Stack>
 			) : null}
-			{job?.error && (
+			{!!job?.error && (
 				<Alert severity="error">{JSON.stringify(job.error)}</Alert>
 			)}
 		</Stack>
