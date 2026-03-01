@@ -57,6 +57,7 @@ def app(_app):
         from sqlalchemy import Integer
 
         Job.__table__.columns["id"].type = Integer()
+
         # 清掃
         sqlite_session.remove()
         app_db.Base.metadata.drop_all(bind=sqlite_engine)

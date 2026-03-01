@@ -63,29 +63,41 @@ def _db_session():
     return app.app_context(), db.session
 
 
+def _is_sqlite(session) -> bool:
+    return session.get_bind().dialect.name == "sqlite"
+
+
 def scheduler_tick(session):
+    is_sq = _is_sqlite(session)
+    now_func = "CURRENT_TIMESTAMP" if is_sq else "now()"
     try:
         n1 = session.execute(
             text(
-                """
+                f"""
             UPDATE jobs
-            SET status = 'queued', updated_at = now()
+            SET status = 'queued', updated_at = {now_func}
             WHERE status = 'retrying'
-              AND (next_run_at IS NULL OR next_run_at <= now());
+              AND (next_run_at IS NULL OR next_run_at <= {now_func});
         """
             )
         ).rowcount
 
-        n2 = session.execute(
-            text(
-                f"""
+        if is_sq:
+            n2_sql = f"""
+            UPDATE jobs
+            SET status = 'retrying', next_run_at = datetime(CURRENT_TIMESTAMP, '+30 seconds'), updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'running'
+              AND updated_at <= datetime(CURRENT_TIMESTAMP, '-{VISIBILITY_TIMEOUT_SEC} seconds');
+            """
+        else:
+            n2_sql = f"""
             UPDATE jobs
             SET status = 'retrying', next_run_at = now() + interval '30 seconds', updated_at = now()
             WHERE status = 'running'
               AND updated_at <= (now() - interval '{VISIBILITY_TIMEOUT_SEC} seconds');
-        """
-            )
-        ).rowcount
+            """
+
+        n2 = session.execute(text(n2_sql)).rowcount
 
         session.commit()
         _log(event="SCHEDULER_TICK", queued_from_retrying=n1, retried_from_running=n2)
@@ -104,32 +116,43 @@ def scheduler_loop():
 
 
 def pick_batch(session, batch=PICK_BATCH):
-    rows = session.execute(
-        text(
-            """
-        WITH cte AS (
-          SELECT id
-          FROM jobs
-          WHERE status IN ('queued','retrying')
-            AND (next_run_at IS NULL OR next_run_at <= now())
-          ORDER BY next_run_at NULLS FIRST, id
-          FOR UPDATE SKIP LOCKED
-          LIMIT :batch
-        )
-        UPDATE jobs j
-        SET status='running', attempts=j.attempts+1, updated_at=now()
-        FROM cte
-        WHERE j.id = cte.id
-        RETURNING j.id;
-    """
-        ),
-        {"batch": batch},
-    ).fetchall()
-
-    ids = [r[0] for r in rows]
-    if not ids:
-        session.commit()
-        return []
+    if _is_sqlite(session):
+        sql_sel = text("SELECT id FROM jobs WHERE status IN ('queued','retrying') AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP) ORDER BY next_run_at ASC LIMIT :batch")
+        rows = session.execute(sql_sel, {"batch": batch}).fetchall()
+        if not rows:
+            session.commit()
+            return []
+        ids = [r[0] for r in rows]
+        bind_placeholders = ", ".join(f":id_{i}" for i in range(len(ids)))
+        bind_params = {f"id_{i}": job_id for i, job_id in enumerate(ids)}
+        sql_upd = text(f"UPDATE jobs SET status='running', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP WHERE id IN ({bind_placeholders})")
+        session.execute(sql_upd, bind_params)
+    else:
+        rows = session.execute(
+            text(
+                """
+            WITH cte AS (
+              SELECT id
+              FROM jobs
+              WHERE status IN ('queued','retrying')
+                AND (next_run_at IS NULL OR next_run_at <= now())
+              ORDER BY next_run_at NULLS FIRST, id
+              FOR UPDATE SKIP LOCKED
+              LIMIT :batch
+            )
+            UPDATE jobs j
+            SET status='running', attempts=j.attempts+1, updated_at=now()
+            FROM cte
+            WHERE j.id = cte.id
+            RETURNING j.id;
+        """
+            ),
+            {"batch": batch},
+        ).fetchall()
+        ids = [r[0] for r in rows]
+        if not ids:
+            session.commit()
+            return []
 
     jobs = session.query(Job).filter(Job.id.in_(ids)).all()
     session.commit()
