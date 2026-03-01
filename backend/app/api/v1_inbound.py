@@ -46,6 +46,24 @@ def receive_order_status(order_id: str):
             400,
         )
 
+    # Validate customer_region if provided
+    if customer_region:
+        import re
+
+        if not re.match(r"^[A-Z]{2}$", str(customer_region)):
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "error": {
+                            "code": "INVALID_ARGUMENT",
+                            "message": "customer_region must be ISO 3166-1 alpha-2 (2 uppercase letters)",
+                        },
+                    }
+                ),
+                400,
+            )
+
     # Parse timestamp
     try:
         ts_aware = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))

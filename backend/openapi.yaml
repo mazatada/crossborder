@@ -21,6 +21,7 @@ tags:
   - name: HSRules
   - name: Compliance
   - name: Tariffs
+  - name: Inbound
 
 paths:
   /v1/health:
@@ -134,6 +135,35 @@ paths:
               schema: { $ref: '#/components/schemas/Job' }
         '404':
           description: 不明なジョブ
+
+  /v1/integrations/orders/{order_id}/status:
+    post:
+      tags: [Inbound]
+      summary: 外部システムからの注文ステータス受信
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, ts]
+              properties:
+                status: { type: string, enum: [PAID, CANCELED] }
+                ts: { type: string, format: date-time }
+                customer_region: 
+                  type: string
+                  pattern: "^[A-Z]{2}$"
+                  description: "ISO 3166-1 alpha-2"
+      responses:
+        '202':
+          description: 受付完了（冪等）
+        '400':
+          description: パラメータ不正
 
   /v1/media/{media_id}:
     get:
@@ -384,6 +414,24 @@ paths:
 
 components:
   schemas:
+    WebhookEvent:
+      type: object
+      required: [event_id, event_type, occurred_at, trace_id]
+      properties:
+        event_id: { type: string, description: "冪等性担保用の一意なイベントID(今回はjob_idを利用)" }
+        event_type: { type: string, enum: [DOCS_PACKAGED, PN_SUBMITTED, JOB_FAILED] }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        result:
+          type: object
+          description: "成功時の結果（event_typeによって中身は異なる）"
+        error:
+          type: object
+          description: "失敗時(JOB_FAILED)の要因"
+          properties:
+            code: { type: string }
+            message: { type: string }
+
     Money:
       type: object
       properties:

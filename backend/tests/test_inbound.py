@@ -95,3 +95,36 @@ def test_receive_order_status_invalid_timestamp_format(client):
     data = resp.get_json()
     assert data["error"]["code"] == "INVALID_ARGUMENT"
     assert "ISO 8601" in data["error"]["message"]
+
+
+def test_receive_order_status_invalid_customer_region(client):
+    """Test validation of customer_region"""
+    resp = client.post(
+        "/v1/integrations/orders/ORDER-REGION-1/status",
+        headers={"Authorization": "Bearer test-api-key"},
+        json={
+            "status": "PAID",
+            "ts": "2025-12-03T10:00:00Z",
+            "customer_region": "JPN",
+        },  # 3 chars
+    )
+
+    assert resp.status_code == 400
+    data = resp.get_json()
+    assert data["error"]["code"] == "INVALID_ARGUMENT"
+    assert "ISO 3166-1 alpha-2" in data["error"]["message"]
+
+    resp2 = client.post(
+        "/v1/integrations/orders/ORDER-REGION-2/status",
+        headers={"Authorization": "Bearer test-api-key"},
+        json={
+            "status": "PAID",
+            "ts": "2025-12-03T10:00:00Z",
+            "customer_region": "us",
+        },  # Lowercase
+    )
+
+    assert resp2.status_code == 400
+    data2 = resp2.get_json()
+    assert data2["error"]["code"] == "INVALID_ARGUMENT"
+    assert "ISO 3166-1 alpha-2" in data2["error"]["message"]

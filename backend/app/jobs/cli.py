@@ -193,12 +193,12 @@ def _after_success(job, result):
     }.get(job.type, f"JOB_{job.type.upper()}_SUCCEEDED")
 
     payload = {
-        "job_id": job.id,
+        "event_id": str(job.id),
         "event_type": event_type,
         "occurred_at": (
             job.updated_at.isoformat() if getattr(job, "updated_at", None) else None
         ),
-        "trace_id": job.trace_id,
+        "trace_id": job.trace_id or "",
         "result": result,
     }
     try:
@@ -324,6 +324,32 @@ def _fail(session, job: Job, err: dict):
     job.error = err
     job.updated_at = _now_utc()
     session.add(job)
+
+    # Send a webhook notification about the permanent failure
+    payload = {
+        "event_id": str(job.id),
+        "event_type": "JOB_FAILED",
+        "occurred_at": job.updated_at.isoformat(),
+        "trace_id": job.trace_id or "",
+        "error": {
+            "code": err.get("class", "UNKNOWN_ERROR"),
+            "message": err.get("message", "Unknown error occurred"),
+        },
+    }
+
+    try:
+        # Ignore response, as the job is already failing.
+        # This will not retry within the worker itself.
+        post_event("JOB_FAILED", payload, trace_id=job.trace_id)
+    except Exception as e:
+        _log(
+            level="error",
+            event="WEBHOOK_POST_FAILED",
+            job_id=job.id,
+            type=job.type,
+            error=str(e),
+            note="Failed to send webhook for JOB_FAILED event",
+        )
 
 
 def requeue_job(job_id: int, *, session=None):
