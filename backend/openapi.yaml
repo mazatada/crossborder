@@ -21,6 +21,7 @@ tags:
   - name: HSRules
   - name: Compliance
   - name: Tariffs
+  - name: Inbound
 
 paths:
   /v1/health:
@@ -134,6 +135,40 @@ paths:
               schema: { $ref: '#/components/schemas/Job' }
         '404':
           description: 不明なジョブ
+
+  /v1/integrations/orders/{order_id}/status:
+    post:
+      tags: [Inbound]
+      summary: 外部システムからの注文ステータス受信
+      security:
+        - ApiKeyAuth: []
+      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status, ts]
+              properties:
+                status: { type: string, enum: [PAID, CANCELED] }
+                ts: { type: string, format: date-time }
+                customer_region: 
+                  type: string
+                  pattern: "^[A-Z]{2}$"
+                  description: "ISO 3166-1 alpha-2"
+      responses:
+        '202':
+          description: 受付完了（冪等）
+        '400':
+          description: パラメータ不正
+        '401':
+          description: 認証エラー (無効なAPIキー)
 
   /v1/media/{media_id}:
     get:
@@ -384,6 +419,24 @@ paths:
 
 components:
   schemas:
+    WebhookEvent:
+      type: object
+      required: [event_id, event_type, occurred_at, trace_id]
+      properties:
+        event_id: { type: string, description: "冪等性担保用の一意なイベントID(今回はjob_idを利用)" }
+        event_type: { type: string, enum: [DOCS_PACKAGED, PN_SUBMITTED, JOB_FAILED] }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        result:
+          type: object
+          description: "成功時の結果（event_typeによって中身は異なる）"
+        error:
+          type: object
+          description: "失敗時(JOB_FAILED)の要因"
+          properties:
+            code: { type: string }
+            message: { type: string }
+
     Money:
       type: object
       properties:
@@ -613,6 +666,7 @@ components:
 
     HSRuleEffect:
       type: object
+      required: [hs_code]
       properties:
         hs_code: { type: string }
         weight:  { type: number, format: float }
@@ -633,13 +687,14 @@ components:
         effect: { $ref: '#/components/schemas/HSRuleEffect' }
         status: { type: string, enum: [draft, active, inactive] }
         version: { type: integer }
-        created_by: { type: string }
-        updated_by: { type: string }
+        created_by: { type: string, nullable: true }
+        updated_by: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
     HSRuleCreate:
       type: object
+      required: [name, condition_dsl, effect]
       properties:
         name: { type: string }
         description: { type: string }
@@ -762,14 +817,14 @@ components:
           type: object
           nullable: true
           properties:
-            clearance_pack_job_id: { type: string }
-            clearance_pack_status: { type: string }
+            clearance_pack_job_id: { type: string, nullable: true }
+            clearance_pack_status: { type: string, nullable: true }
             prior_notice_required: { type: boolean }
-            prior_notice_status: { type: string }
+            prior_notice_status: { type: string, nullable: true }
         audit:
           type: object
           properties:
-            last_updated_by: { type: string }
+            last_updated_by: { type: string, nullable: true }
             last_updated_at: { type: string, format: date-time }
 
     HSResponse:
@@ -1313,37 +1368,4 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error404' }
 
-  /v1/integrations/orders/{order_id}/status:
-    post:
-      tags: [Integrations]
-      summary: 注文ステータス受信
-      security:
-        - ApiKeyAuth: []
-      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
-      parameters:
-        - in: path
-          name: order_id
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/OrderStatusUpdate' }
-      responses:
-        '202':
-          description: 受付済
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string }
-                  order_id: { type: string }
-        '400':
-          description: パラメータ不正
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error400' }
-        '401':
-          description: 認証エラー (無効なAPIキー)
+
