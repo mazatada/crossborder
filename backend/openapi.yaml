@@ -140,6 +140,9 @@ paths:
     post:
       tags: [Inbound]
       summary: 外部システムからの注文ステータス受信
+      security:
+        - ApiKeyAuth: []
+      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
       parameters:
         - in: path
           name: order_id
@@ -164,6 +167,8 @@ paths:
           description: 受付完了（冪等）
         '400':
           description: パラメータ不正
+        '401':
+          description: 認証エラー (無効なAPIキー)
 
   /v1/media/{media_id}:
     get:
@@ -1363,37 +1368,4 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error404' }
 
-  /v1/integrations/orders/{order_id}/status:
-    post:
-      tags: [Integrations]
-      summary: 注文ステータス受信
-      security:
-        - ApiKeyAuth: []
-      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
-      parameters:
-        - in: path
-          name: order_id
-          required: true
-          schema: { type: string }
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/OrderStatusUpdate' }
-      responses:
-        '202':
-          description: 受付済
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string }
-                  order_id: { type: string }
-        '400':
-          description: パラメータ不正
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error400' }
-        '401':
-          description: 認証エラー (無効なAPIキー)
+

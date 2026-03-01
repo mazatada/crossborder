@@ -325,6 +325,8 @@ def _fail(session, job: Job, err: dict):
     job.updated_at = _now_utc()
     session.add(job)
 
+
+def _after_failure(job: Job, err: dict):
     # Send a webhook notification about the permanent failure
     payload = {
         "event_id": str(job.id),
@@ -459,6 +461,7 @@ def worker_once(session):
                 if isinstance(e, NonRetriableError):
                     _fail(session, job, err)
                     session.commit()
+                    _after_failure(job, err)
                     record_event(
                         event="JOB_FAILED",
                         trace_id=job.trace_id,
@@ -529,6 +532,7 @@ def worker_once(session):
                     else:
                         _fail(session, job, err)
                         session.commit()
+                        _after_failure(job, err)
                         record_event(
                             event="JOB_FAILED",
                             trace_id=job.trace_id,
