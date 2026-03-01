@@ -1,11 +1,13 @@
 from flask import Blueprint, jsonify, request
 from ..models import AuditEvent
 from ..db import db
+from ..auth import require_api_key
 
 bp = Blueprint("audit", __name__, url_prefix="/v1")
 
 
 @bp.get("/audit/trace/<trace_id>")
+@require_api_key
 def audit_trace(trace_id):
     rows = (
         db.session.query(AuditEvent)
@@ -28,6 +30,7 @@ def audit_trace(trace_id):
 
 
 @bp.get("/audit/recent")
+@require_api_key
 def audit_recent():
     limit = request.args.get("limit", 20, type=int)
     rows = (

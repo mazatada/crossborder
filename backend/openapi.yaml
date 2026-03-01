@@ -4,6 +4,7 @@ info:
   version: 1.0.0
   description: >
     越境EC業務の法規対応自動化API（MVP）。ジョブ基盤・監査・メディア配布を含む。
+OpenAPI versioning: backward-compatible changes only in minor; breaking changes only in major.
 servers:
   - url: http://localhost:5001
     description: Local Dev
@@ -16,6 +17,10 @@ tags:
   - name: Jobs
   - name: Audit
   - name: Media
+  - name: HSReview
+  - name: HSRules
+  - name: Compliance
+  - name: Tariffs
 
 paths:
   /v1/health:
@@ -168,8 +173,400 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/AuditEvent' }
 
+  /v1/hs-classifications/{id}:
+    get:
+      tags: [HSReview]
+      summary: HS分類レビュー取得
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: HS分類レビュー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSClassificationReview' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+    put:
+      tags: [HSReview]
+      summary: HS分類レビュー更新
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSClassificationUpdate' }
+      responses:
+        '200':
+          description: 更新後のHS分類レビュー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSClassificationReview' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+        '409':
+          description: 競合（レビュー済み/ロック済み）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error409' }
+
+  /v1/hs-rules:
+    get:
+      tags: [HSRules]
+      summary: HSルール一覧
+      parameters:
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [draft, active, inactive] }
+        - in: query
+          name: scope
+          required: false
+          schema: { type: string }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: ルール一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRuleListResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+    post:
+      tags: [HSRules]
+      summary: HSルール作成
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRuleCreate' }
+      responses:
+        '201':
+          description: 作成済みルール
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+
+  /v1/hs-rules/{id}:
+    get:
+      tags: [HSRules]
+      summary: HSルール取得
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: ルール詳細
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+    put:
+      tags: [HSRules]
+      summary: HSルール更新
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/HSRuleUpdate' }
+      responses:
+        '200':
+          description: 更新済みルール
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSRule' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+    delete:
+      tags: [HSRules]
+      summary: HSルール無効化
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: 無効化完了
+
+  /v1/hs-rules:test:
+    post:
+      tags: [HSRules]
+      summary: HSルールテスト
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                rule: { $ref: '#/components/schemas/HSRuleCreate' }
+                product_sample: { $ref: '#/components/schemas/ProductSample' }
+      responses:
+        '200':
+          description: テスト結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matched: { type: boolean }
+                  reason:  { type: array, items: { type: string } }
+                  effect_preview: { $ref: '#/components/schemas/HSRuleEffect' }
+        '400':
+          description: DSL構文エラー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+
+  /v1/products/{product_id}/compliance:
+    get:
+      tags: [Compliance]
+      summary: 商品コンプライアンス集約
+      parameters:
+        - in: path
+          name: product_id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: 集約ビュー
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceView' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
 components:
   schemas:
+    Money:
+      type: object
+      properties:
+        amount: { type: number, format: float }
+        currency: { type: string }
+      required: [amount, currency]
+
+    DutyComponent:
+      type: object
+      properties:
+        type:
+          type: string
+          description: "basic, section301, safeguard, anti_dumping, countervailing など"
+        rate_type:
+          type: string
+          enum: [ad_valorem, specific]
+        rate:
+          type: number
+          format: float
+          description: "0.05 = 5%"
+        amount:
+          type: number
+          format: float
+          description: "計算済み金額"
+        basis:
+          type: string
+          description: "customs_value, quantity など"
+
+    DutySummary:
+      type: object
+      properties:
+        total_amount: { type: number, format: float }
+        currency:     { type: string }
+        components:
+          type: array
+          items: { $ref: '#/components/schemas/DutyComponent' }
+
+    AdditionalDuty:
+      type: object
+      required: [type, rate_type, rate, basis]
+      properties:
+        type:
+          type: string
+          enum: [section301, safeguard, anti_dumping, countervailing]
+        rate_type:
+          type: string
+          enum: [ad_valorem, specific]
+        rate:
+          type: number
+          format: float
+          description: "0.075 = 7.5%"
+        amount:
+          type: number
+          format: float
+          nullable: true
+        basis:
+          type: string
+          enum: [customs_value, quantity]
+
+    TariffRate:
+      type: object
+      deprecated: true
+      properties:
+        type:
+          type: string
+          enum: [ad_valorem, specific, mixed]
+        ad_valorem_rate:
+          type: number
+          format: float
+          description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
+        ad_valorem_pct:
+          type: number
+          deprecated: true
+          description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal target: 2026-06-30 (v2)."
+        specific:
+          type: number
+          format: float
+        currency:
+          type: string
+        basis_uom:
+          type: string
+
+    DutyRateDetailed:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [ad_valorem, specific, mixed]
+        ad_valorem_rate:
+          type: number
+          format: float
+          description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
+        ad_valorem_pct:
+          type: number
+          deprecated: true
+          nullable: true
+          description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal target: 2026-06-30 (v2)."
+        specific:
+          type: number
+          format: float
+        currency:
+          type: string
+        basis_uom:
+          type: string
+
+    TariffRateResponse:
+      type: object
+      properties:
+        destination_country: { type: string }
+        hs_code: { type: string }
+        origin_country: { type: string, nullable: true }
+        as_of: { type: string, format: date }
+        duty_rate:
+          $ref: '#/components/schemas/DutyRateDetailed'
+        additional_duties:
+          type: array
+          description: "Additional duties are returned at response level; base duty_rate excludes them."
+          items:
+            $ref: '#/components/schemas/AdditionalDuty'
+        metadata:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            source: { type: string }
+            last_updated_at: { type: string, format: date-time }
+
+    TariffCalculationRequest:
+      type: object
+      required: [hs_code, origin_country, destination_country, customs_value]
+      properties:
+        hs_code: { type: string }
+        origin_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        destination_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        quantity:
+          type: number
+          format: float
+        uom:
+          type: string
+        valuation_method:
+          type: string
+          enum: [FOB, CIF, EXW]
+        declaration_date:
+          type: string
+          format: date
+        options:
+          type: object
+          properties:
+            apply_preferential_if_available:
+              type: boolean
+              default: true
+            rounding_mode:
+              type: string
+              enum: [standard, floor, ceil]
+              default: standard
+
+    TariffCalculationResponse:
+      type: object
+      properties:
+        hs_code: { type: string }
+        origin_country: { type: string }
+        destination_country: { type: string }
+        customs_value:
+          $ref: '#/components/schemas/Money'
+        duty:
+          $ref: '#/components/schemas/DutySummary'
+        applied_rates:
+          type: object
+          properties:
+            tariff_schedule_version: { type: string }
+            rules:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string }
+                  description: { type: string }
+                  legal_reference: { type: string }
     HSRequest:
       type: object
       required: [product]
@@ -181,6 +578,199 @@ components:
             category:    { type: string }
             process:     { type: array, items: { type: string } }
             ingredients: { type: array, items: { type: object, properties: { id: {type: string} }, required: [id] } }
+
+    ProductSample:
+      type: object
+      properties:
+        name: { type: string }
+        category: { type: string }
+        ingredients:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              pct:  { type: number, format: float, description: "0-100" }
+
+    RuleDslError:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            class:   { type: string, example: rule_dsl_error }
+            message: { type: string }
+            field:   { type: string }
+            severity:{ type: string, example: "block" }
+            details:
+              type: object
+              properties:
+                line:       { type: integer, nullable: true, description: "Optional. Only present for JSON parsing errors." }
+                column:     { type: integer, nullable: true, description: "Optional. Only present for JSON parsing errors." }
+                path:       { type: string, nullable: true, description: "Optional json-path to the offending rule node." }
+                expression: { type: string, nullable: true }
+                hint:       { type: string, nullable: true }
+
+    HSRuleEffect:
+      type: object
+      properties:
+        hs_code: { type: string }
+        weight:  { type: number, format: float }
+        tags:    { type: array, items: { type: string } }
+      description: "Phase A: effect はhs_code/weight/tagsのみ使用"
+
+    HSRule:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl:
+          type: string
+          description: "Phase A: JSON条件文字列（RuleEngine互換）"
+        effect: { $ref: '#/components/schemas/HSRuleEffect' }
+        status: { type: string, enum: [draft, active, inactive] }
+        version: { type: integer }
+        created_by: { type: string }
+        updated_by: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    HSRuleCreate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl:
+          type: string
+          description: "Phase A: JSON条件文字列（RuleEngine互換）。例: {\"all\":[{\"always\":{}}]}"
+        effect: { $ref: '#/components/schemas/HSRuleEffect' }
+        status: { type: string, enum: [draft, active, inactive] }
+
+    HSRuleUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        description: { type: string }
+        priority: { type: integer }
+        scope: { type: string }
+        condition_dsl:
+          type: string
+          description: "Phase A: JSON条件文字列（RuleEngine互換）。例: {\"all\":[{\"always\":{}}]}"
+        effect: { $ref: '#/components/schemas/HSRuleEffect' }
+        status: { type: string, enum: [draft, active, inactive] }
+
+    HSRuleListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/HSRule' }
+        has_more: { type: boolean }
+        next_cursor: { type: string, nullable: true }
+
+    DutyRateOverride:
+      type: object
+      properties:
+        duty_rate: { $ref: '#/components/schemas/DutyRateDetailed' }
+        additional_duties:
+          type: array
+          items: { $ref: '#/components/schemas/AdditionalDuty' }
+
+    HSClassificationReview:
+      type: object
+      properties:
+        id: { type: string }
+        trace_id: { type: string }
+        product_id: { type: string, nullable: true }
+        status: { type: string }
+        hs_candidates:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              description: { type: string }
+              confidence: { type: number, format: float }
+              rationale: { type: array, items: { type: string } }
+              required_uom: { type: string }
+        final_hs_code: { type: string }
+        final_source: { type: string, nullable: true }
+        duty_rate: { $ref: '#/components/schemas/DutyRateDetailed', nullable: true }
+        duty_rate_override: { $ref: '#/components/schemas/DutyRateOverride', nullable: true }
+        risk_flags:
+          type: array
+          items:
+            type: object
+            properties:
+              code: { type: string }
+              severity: { type: string }
+              description: { type: string }
+        review_required: { type: boolean }
+        reviewed_by: { type: string, nullable: true }
+        reviewed_at: { type: string, format: date-time, nullable: true }
+        review_comment: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    HSClassificationUpdate:
+      type: object
+      properties:
+        final_hs_code: { type: string }
+        final_source: { type: string }
+        duty_rate_override: { $ref: '#/components/schemas/DutyRateOverride' }
+        review_required: { type: boolean }
+        review_comment: { type: string }
+        reviewed_by: { type: string }
+
+    ComplianceView:
+      type: object
+      properties:
+        product_id: { type: string }
+        trace_id: { type: string }
+        hs_classification:
+          type: object
+          properties:
+            final_hs_code: { type: string }
+            final_source: { type: string }
+            review_required: { type: boolean }
+            status: { type: string }
+            reviewed_by: { type: string, nullable: true }
+            reviewed_at: { type: string, format: date-time, nullable: true }
+            risk_flags:
+              type: array
+              items:
+                type: object
+                properties:
+                  code: { type: string }
+                  severity: { type: string }
+                  description: { type: string }
+        duty:
+          type: object
+          nullable: true
+          properties:
+            destination_country: { type: string }
+            origin_country: { type: string }
+            last_calculated_at: { type: string, format: date-time }
+            customs_value: { $ref: '#/components/schemas/Money', nullable: true }
+            duty: { $ref: '#/components/schemas/DutySummary', nullable: true }
+        docs:
+          type: object
+          nullable: true
+          properties:
+            clearance_pack_job_id: { type: string }
+            clearance_pack_status: { type: string }
+            prior_notice_required: { type: boolean }
+            prior_notice_status: { type: string }
+        audit:
+          type: object
+          properties:
+            last_updated_by: { type: string }
+            last_updated_at: { type: string, format: date-time }
 
     HSResponse:
       type: object
@@ -197,9 +787,18 @@ components:
               required_uom:  { type: string }
         duty_rate:
           type: object
+          required: [ad_valorem_rate, additional]
           properties:
-            ad_valorem_pct: { type: number }
-            additional:     { type: array, items: { type: string } }
+            ad_valorem_rate:
+              type: number
+              nullable: true
+              description: "0.05 = 5%. Must be provided when ad_valorem_pct is present."
+            ad_valorem_pct:
+              type: number
+              nullable: true
+              deprecated: true
+              description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal target: 2026-06-30 (v2)."
+            additional:     { type: array, items: { type: string }, description: "Compatibility field; AdditionalDuty[] planned in next major with ad_valorem_pct removal." }
         risk_flags:
           type: object
           properties:
@@ -279,16 +878,39 @@ components:
         ts:      { type: string, format: date-time }
         payload: {}
 
-    Error400:
+
+    Error404:
       type: object
       properties:
         error:
           type: object
           properties:
-            class:    { type: string, example: "missing_required" }
+            class:    { type: string, example: "not_found" }
             message:  { type: string }
             field:    { type: string }
             severity: { type: string, example: "block" }
+    Error409:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            class:    { type: string, example: "conflict" }
+            message:  { type: string }
+            field:    { type: string }
+            severity: { type: string, example: "block" }
+    Error400:
+      oneOf:
+        - type: object
+          properties:
+            error:
+              type: object
+              properties:
+                class:    { type: string, enum: [missing_required, invalid_format, invalid_argument], example: "missing_required" }
+                message:  { type: string }
+                field:    { type: string }
+                severity: { type: string, example: "block" }
+        - $ref: '#/components/schemas/RuleDslError'
       example:
         error: { class: missing_required, field: "product.description", message: "required", severity: "block" }
 
@@ -304,4 +926,424 @@ components:
               rule:    { type: string }
               message: { type: string }
 
+    WebhookEndpoint:
+      type: object
+      properties:
+        id: { type: integer }
+        url: { type: string, format: uri }
+        events: { type: array, items: { type: string } }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        secret: { type: string, nullable: true, description: "Only returned on creation" }
+
+    WebhookTestResult:
+      type: object
+      properties:
+        status: { type: string }
+        webhook_id: { type: integer }
+        delivery_status: { type: string }
+
+    WebhookDLQEntry:
+      type: object
+      properties:
+        id: { type: integer }
+        webhook_id: { type: integer }
+        event_type: { type: string }
+        trace_id: { type: string, nullable: true }
+        attempts: { type: integer }
+        last_error: { type: string, nullable: true }
+        last_status_code: { type: integer, nullable: true }
+        replayed: { type: boolean }
+        created_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+
+    EventHSClassified:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "HS_CLASSIFIED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        product:
+          type: object
+          properties:
+            product_id: { type: string }
+            category: { type: string }
+            origin_country: { type: string }
+        hs:
+          type: object
+          properties:
+            candidates:
+              type: array
+              items: { $ref: '#/components/schemas/HSClassificationCandidate' }
+            final_code: { type: string }
+            required_uom: { type: string }
+            review_required: { type: boolean }
+
+    EventDocsPackaged:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "DOCS_PACKAGED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        job_id: { type: string }
+        artifacts:
+          type: array
+          items: { $ref: '#/components/schemas/Artifact' }
+        uom_check:
+          type: object
+          properties:
+            required: { type: string }
+            invoice: { type: string }
+            valid: { type: boolean }
+
+    EventPNSubmitted:
+      type: object
+      properties:
+        event_id: { type: string }
+        event_type: { type: string, example: "PN_SUBMITTED" }
+        occurred_at: { type: string, format: date-time }
+        trace_id: { type: string }
+        job_id: { type: string }
+        status: { type: string }
+
+    OrderStatusUpdate:
+      type: object
+      required: [status, ts]
+      properties:
+        status:
+          type: string
+          enum: [PAID, CANCELED]
+        ts:
+          type: string
+          format: date-time
+        customer_region:
+          type: string
+          nullable: true
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
 security: []   # 将来: bearerAuth 等を追加予定
+paths:
+  /v1/tariffs/{destination_country}/{hs_code}:
+    get:
+      tags: [Tariffs]
+      summary: 関税率取得
+      parameters:
+        - in: path
+          name: destination_country
+          required: true
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: path
+          name: hs_code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: origin_country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: as_of
+          required: false
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 関税率情報
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffRateResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 該当する税率が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
+
+  /v1/tariffs/calculate:
+    post:
+      tags: [Tariffs]
+      summary: 関税額計算
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TariffCalculationRequest' }
+      responses:
+        '200':
+          description: 関税額と内訳
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TariffCalculationResponse' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '404':
+          description: 税率情報が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+        '422':
+          description: バリデーション違反
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Violation422' }
+
+  /v1/hs-codes:
+    get:
+      tags: [HS]
+      summary: HSコード検索
+      parameters:
+        - in: query
+          name: q
+          required: false
+          schema: { type: string }
+        - in: query
+          name: chapter
+          required: false
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: cursor
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: HSコード一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCodeSearchResult' }
+
+  /v1/hs-codes/{code}:
+    get:
+      tags: [HS]
+      summary: HSコード詳細取得
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema: { type: string }
+        - in: query
+          name: country
+          required: false
+          schema: { type: string, description: "ISO 3166-1 alpha-2" }
+      responses:
+        '200':
+          description: HSコード詳細
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HSCode' }
+        '404':
+          description: HSコードが存在しない
+
+  /v1/integrations/webhooks:
+    post:
+      tags: [Integrations]
+      summary: Webhook登録
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url: { type: string, format: uri }
+                events: { type: array, items: { type: string } }
+      responses:
+        '201':
+          description: 登録成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookEndpoint' }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+    get:
+      tags: [Integrations]
+      summary: Webhook一覧
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: 一覧結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookEndpoint' }
+
+  /v1/integrations/webhooks/{webhook_id}:
+    delete:
+      tags: [Integrations]
+      summary: Webhook削除（無効化）
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: webhook_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 無効化成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: integer }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/webhooks/{webhook_id}/test:
+    post:
+      tags: [Integrations]
+      summary: Webhookテスト送信
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: webhook_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: テスト結果
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WebhookTestResult' }
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/webhooks/dlq:
+    get:
+      tags: [Integrations]
+      summary: DLQ一覧
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: DLQ一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dlq_entries:
+                    type: array
+                    items: { $ref: '#/components/schemas/WebhookDLQEntry' }
+
+  /v1/integrations/webhooks/dlq/cleanup:
+    post:
+      tags: [Integrations]
+      summary: 期限切れDLQの削除
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: 削除件数
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted_count: { type: integer }
+
+  /v1/integrations/webhooks/dlq/{dlq_id}/replay:
+    post:
+      tags: [Integrations]
+      summary: DLQ手動再送
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: dlq_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: 再送結果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  dlq_id: { type: integer }
+                  replayed: { type: boolean }
+                  response: {}
+        '404':
+          description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/integrations/orders/{order_id}/status:
+    post:
+      tags: [Integrations]
+      summary: 注文ステータス受信
+      security:
+        - ApiKeyAuth: []
+      description: "外部システムからの注文ステータス更新を非同期で受け取ります。冪等性を担保するため、同一 order_id + status に対する複数回の呼び出しは無視または安全に処理されます。"
+      parameters:
+        - in: path
+          name: order_id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OrderStatusUpdate' }
+      responses:
+        '202':
+          description: 受付済
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  order_id: { type: string }
+        '400':
+          description: パラメータ不正
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+        '401':
+          description: 認証エラー (無効なAPIキー)

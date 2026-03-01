@@ -280,7 +280,11 @@ def classify_hs() -> Tuple[Response, int]:
         response = {
             "hs_candidates": result["hs_candidates"],
             "final_hs_code": result["final_hs_code"],
-            "duty_rate": {"ad_valorem_pct": None, "additional": []},
+            "duty_rate": {
+                "ad_valorem_rate": None,
+                "ad_valorem_pct": None,  # backward-compatibility (deprecated)
+                "additional": [],
+            },
             "risk_flags": {"ad_cvd": False, "import_alert": False},
             "quota_applicability": None,
             "review_required": result["review_required"],
@@ -308,9 +312,12 @@ def classify_hs() -> Tuple[Response, int]:
                 required_uom=result["required_uom"],
                 review_required=result["review_required"],
                 duty_rate=response["duty_rate"],
+                duty_rate_override=None,
                 risk_flags=response["risk_flags"],
                 quota_applicability=response["quota_applicability"],
                 explanations=response["explanations"],
+                status="classified",
+                final_source="system",
                 classification_method="rule_based",
                 processing_time_ms=processing_time_ms,
                 cache_hit=result.get("cache_hit", False),

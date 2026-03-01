@@ -11,21 +11,11 @@
    git push origin main
    ```
 
-2. **GitHub Actionsが自動実行**
-   - CI/CDワークフローが自動的に開始
-   - テスト → ビルド → デプロイの順に実行
-   - ステージング環境に自動デプロイ
-
-3. **デプロイ状況の確認**
-   - GitHub ActionsのUIで進行状況を確認
-   - ヘルスチェックが成功することを確認
-
-### 手動デプロイ
-
-1. **環境変数の設定**
+2. **前のバージョンにロールバック**
    ```bash
-   cp .env.example .env
-   # .envファイルを編集して本番環境の値を設定
+   # rollback to last good commit
+   git checkout <last_good_commit>
+   docker-compose up -d
    ```
 
 2. **データベースマイグレーション**
@@ -44,7 +34,7 @@
 
 4. **ヘルスチェック**
    ```bash
-   curl http://localhost:5000/health
+   curl http://localhost:65001/v1/health
    ```
 
 ---
@@ -62,8 +52,7 @@
 2. **前のバージョンにロールバック**
    ```bash
    # 前のイメージタグを指定
-   docker-compose down
-   docker-compose pull crossborder-backend:previous-tag
+   git checkout <last_good_commit>
    docker-compose up -d
    ```
 
@@ -78,7 +67,7 @@
 
 4. **ヘルスチェック**
    ```bash
-   curl http://localhost:5000/health
+   curl http://localhost:65001/v1/health
    ```
 
 ### 計画的ロールバック
@@ -112,7 +101,7 @@
 5. **動作確認**
    ```bash
    # ヘルスチェック
-   curl http://localhost:5000/health
+   curl http://localhost:65001/v1/health
    
    # 主要機能のテスト
    make test-e2e
@@ -180,3 +169,31 @@
 - [ ] データベースの整合性が保たれている
 - [ ] ユーザーへの影響が最小限
 - [ ] インシデントレポートが作成されている
+
+---
+
+## Windows ローカル運用（タスクスケジューラ）
+
+1. **スクリプト準備**
+   - `scripts/local_deploy.ps1` の `RepoPath` / `ComposeDir` / `ServiceUrl` を実環境に合わせて編集
+   - 例: `ServiceUrl = "http://localhost:65001"`
+
+2. **タスクスケジューラ登録**
+   - トリガー: 15分ごと（必要に応じて変更）
+   - 操作: プログラムの開始
+   - プログラム: `powershell.exe`
+   - 引数: `-ExecutionPolicy Bypass -File D:\works2025\越境EC\crossover_win\crossborder\scripts\local_deploy.ps1`
+
+3. **任意: 依存更新がある場合のみビルド**
+   - 引数に `-Build` を追加すると `docker compose build` を実行
+
+---
+
+## Local Windows Ops Notes (Source-Based)
+
+- `scripts/local_deploy.ps1` writes the last known good commit to `.last_good_commit`.
+- On health check failure after update, the script rolls back to `.last_good_commit` and rechecks health.
+- A lock file `.deploy_lock` prevents overlapping runs when Task Scheduler triggers frequently.
+- `GitRemote` is fixed to `origin` for simplicity; override with `-GitRemote` only if you have a non-standard remote.
+- Ensure the Git remote exists and credentials allow `git fetch`.
+- Keep the working tree clean so `git checkout` can switch to the target branch safely.

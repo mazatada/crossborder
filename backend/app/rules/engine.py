@@ -10,6 +10,8 @@ import yaml
 from pathlib import Path
 import logging
 
+from app.rules.predicates import PREDICATES, validate_predicate_params
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +19,80 @@ class RuleValidationError(Exception):
     """ルール検証エラー"""
 
     pass
+
+
+def _validate_conditions_structure(
+    conditions: Dict,
+    rule_id: str,
+    valid_categories: List[str],
+    valid_countries: List[str],
+) -> None:
+    if not isinstance(conditions, dict):
+        raise RuleValidationError(f"Rule {rule_id}: conditions must be an object")
+
+    for cond_type in ["all", "any"]:
+        if cond_type in conditions:
+            items = conditions.get(cond_type)
+            if not isinstance(items, list):
+                raise RuleValidationError(f"Rule {rule_id}: {cond_type} must be a list")
+            for cond in items:
+                if not isinstance(cond, dict):
+                    raise RuleValidationError(
+                        f"Rule {rule_id}: condition entries must be objects"
+                    )
+                for predicate, params in cond.items():
+                    if predicate not in PREDICATES:
+                        raise RuleValidationError(
+                            f"Rule {rule_id}: Unknown predicate: {predicate}"
+                        )
+
+                    if not isinstance(params, dict):
+                        raise RuleValidationError(
+                            f"Rule {rule_id}: predicate params must be objects"
+                        )
+                    try:
+                        validate_predicate_params(predicate, params)
+                    except ValueError as e:
+                        raise RuleValidationError(f"Rule {rule_id}: {e}") from e
+
+                    # カテゴリ検証
+                    if predicate == "category_is":
+                        category = params.get("value", "")
+                        if category and category not in valid_categories:
+                            logger.warning(
+                                f"Rule {rule_id}: Category '{category}' not in valid list"
+                            )
+
+                    # 国コード検証
+                    if predicate == "origin_in":
+                        countries = params.get("values", [])
+                        if not isinstance(countries, list):
+                            raise RuleValidationError(
+                                f"Rule {rule_id}: origin_in.values must be a list"
+                            )
+                        for country in countries:
+                            if country.upper() not in valid_countries:
+                                logger.warning(
+                                    f"Rule {rule_id}: Country '{country}' not in valid list"
+                                )
+
+
+class RuleValidator:
+    """YAMLロードを伴わないDSLバリデータ"""
+
+    def validate_conditions(self, conditions: Dict) -> None:
+        valid_categories = [
+            "confectionery",
+            "beverages",
+            "dairy",
+            "meat",
+            "seafood",
+            "other_food_preparations",
+        ]
+        valid_countries = ["JP", "US", "CN", "KR", "TW", "TH", "VN"]
+        _validate_conditions_structure(
+            conditions, "custom", valid_categories, valid_countries
+        )
 
 
 class RuleEngine:
@@ -37,15 +113,7 @@ class RuleEngine:
         self.rules_dir = target_dir
         self.rules: List[Dict] = []
         self.rules_version = "unknown"
-        self.predicates: Dict[str, Any] = {
-            "contains_any_ids": self._contains_any_ids,
-            "process_any": self._process_any,
-            "origin_in": self._origin_in,
-            "category_is": self._category_is,
-            "not_contains_ids": self._not_contains_ids,
-            "ingredient_pct_threshold": self._ingredient_pct_threshold,
-            "always": self._always,
-        }
+        self.predicates: Dict[str, Any] = PREDICATES
         self.load_rules()
         self.validate_rules()
 
@@ -112,43 +180,9 @@ class RuleEngine:
 
             # 条件の検証
             conditions = rule.get("conditions", {})
-            self._validate_conditions(
+            _validate_conditions_structure(
                 conditions, rule["id"], valid_categories, valid_countries
             )
-
-    def _validate_conditions(
-        self,
-        conditions: Dict,
-        rule_id: str,
-        valid_categories: List[str],
-        valid_countries: List[str],
-    ):
-        """条件の検証"""
-        for cond_type in ["all", "any"]:
-            if cond_type in conditions:
-                for cond in conditions[cond_type]:
-                    for predicate, params in cond.items():
-                        if predicate not in self.predicates:
-                            raise RuleValidationError(
-                                f"Rule {rule_id}: Unknown predicate: {predicate}"
-                            )
-
-                        # カテゴリ検証
-                        if predicate == "category_is":
-                            category = params.get("value", "")
-                            if category not in valid_categories:
-                                logger.warning(
-                                    f"Rule {rule_id}: Category '{category}' not in valid list"
-                                )
-
-                        # 国コード検証
-                        if predicate == "origin_in":
-                            countries = params.get("values", [])
-                            for country in countries:
-                                if country.upper() not in valid_countries:
-                                    logger.warning(
-                                        f"Rule {rule_id}: Country '{country}' not in valid list"
-                                    )
 
     def evaluate(self, product_data: Dict[str, Any]) -> List[Dict]:
         """
@@ -226,123 +260,6 @@ class RuleEngine:
 
         # ========== 述語実装 ==========
         return False
-
-    def _contains_any_ids(self, field_value: Any, values: List[str]) -> bool:
-        """
-        成分IDリストが指定IDのいずれかを含むか (完全一致)
-
-        Args:
-            field_value: 成分リスト [{"id": "ing_xxx", "pct": 30.0}, ...]
-            values: 検索する成分IDリスト
-
-        Returns:
-            いずれかのIDが含まれる場合True
-        """
-        if not field_value:
-            return False
-
-        ingredient_ids = [ing.get("id") for ing in field_value if isinstance(ing, dict)]
-        return any(ing_id in values for ing_id in ingredient_ids)
-
-    def _process_any(self, field_value: Any, values: List[str]) -> bool:
-        """
-        加工方法が指定値のいずれかを含むか
-
-        Args:
-            field_value: 加工方法リスト ["baking", "packaging"]
-            values: 検索する加工方法リスト
-
-        Returns:
-            いずれかの加工方法が含まれる場合True
-        """
-        if not field_value or not isinstance(field_value, list):
-            return False
-
-        processes = [p.lower() for p in field_value]
-        return any(v.lower() in processes for v in values)
-
-    def _origin_in(self, field_value: Any, values: List[str]) -> bool:
-        """
-        原産国が指定リストに含まれるか (ISO 3166-1 alpha-2)
-
-        Args:
-            field_value: 原産国コード (例: "JP")
-            values: 許可される国コードリスト
-
-        Returns:
-            国コードがリストに含まれる場合True
-        """
-        if not field_value:
-            return False
-        return field_value.upper() in [v.upper() for v in values]
-
-    def _category_is(self, field_value: Any, value: str) -> bool:
-        """
-        カテゴリが指定値と一致するか
-
-        Args:
-            field_value: カテゴリ名
-            value: 期待されるカテゴリ名
-
-        Returns:
-            カテゴリが一致する場合True
-        """
-        if not field_value:
-            return False
-        return field_value.lower() == value.lower()
-
-    def _not_contains_ids(self, field_value: Any, values: List[str]) -> bool:
-        """
-        成分IDリストが指定IDを含まないか
-
-        Args:
-            field_value: 成分リスト
-            values: 除外する成分IDリスト
-
-        Returns:
-            いずれのIDも含まない場合True
-        """
-        return not self._contains_any_ids(field_value, values)
-
-    def _ingredient_pct_threshold(
-        self,
-        field_value: Any,
-        ingredient_id: str,
-        min_pct: float,
-        max_pct: Optional[float] = None,
-    ) -> bool:
-        """
-        特定成分の含有率が閾値範囲内か
-
-        Args:
-            field_value: 成分リスト
-            ingredient_id: 対象成分ID
-            min_pct: 最小含有率 (%)
-            max_pct: 最大含有率 (%) (Noneの場合は上限なし)
-
-        Returns:
-            含有率が範囲内の場合True
-        """
-        if not field_value:
-            return False
-
-        for ing in field_value:
-            if isinstance(ing, dict) and ing.get("id") == ingredient_id:
-                pct = ing.get("pct", 0)
-                if max_pct is None:
-                    return pct >= min_pct
-                return min_pct <= pct <= max_pct
-
-        return False
-
-    def _always(self) -> bool:
-        """
-        常に真 (デフォルトルール用)
-
-        Returns:
-            常にTrue
-        """
-        return True
 
     def get_rules_version(self) -> str:
         """ルールバージョンを取得"""

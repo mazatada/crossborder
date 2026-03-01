@@ -61,6 +61,13 @@ class TestClassifyHSAPI:
         assert data["metadata"]["rules_version"] == "1.1.0"
         assert "processing_time_ms" in data["metadata"]
 
+        # duty_rate 互換検証（移行期間）
+        duty_rate = data["duty_rate"]
+        assert "ad_valorem_rate" in duty_rate
+        assert "ad_valorem_pct" in duty_rate
+        # 移行期間中はnull許容
+        assert duty_rate["ad_valorem_rate"] is None
+
     def test_classify_saves_to_database(self, client, api_key_header, db_session):
         """DB保存の確認"""
         response = client.post(
@@ -204,8 +211,9 @@ class TestClassifyHSAPI:
         data = response.get_json()
         assert "violations" in data
         # バリデーションではなく、分類失敗のviolationを期待
-        assert any(v.get("field") in ["classification", "product"] for v in data["violations"])
-
+        assert any(
+            v.get("field") in ["classification", "product"] for v in data["violations"]
+        )
 
     def test_classify_without_api_key(self, client):
         """APIキーなし (401エラー)"""

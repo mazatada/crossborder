@@ -77,8 +77,17 @@ jobs( id PK, type, payload_json, status, attempts, next_run_at, result_json, err
 - 監査保持: 7年（WORM相当運用）
 
 ## 6. ルールエンジン（DSL）
-述語: `contains_any`, `process_any`, `origin_in`, `threshold`, `always`  
+Phase A は **JSON条件文字列** を採用し、述語の単一ソースは `backend/app/rules/predicates.py` とする。  
 YAMLサンプルは `rules/hs_food.yml` を参照。
+
+述語（Phase A）:
+- `contains_any_ids`（values: string[]）
+- `not_contains_ids`（values: string[]）
+- `process_any`（values: string[]）
+- `origin_in`（values: string[]）
+- `category_is`（value: string）
+- `ingredient_pct_threshold`（ingredient_id: string, min_pct: number, max_pct?: number）
+- `always`（params: {}）
 
 ## 7. 非同期ジョブ/状態遷移
 - 共通: `queued → running → (done|error)` / `error→retry(backoff)→done|dlq`

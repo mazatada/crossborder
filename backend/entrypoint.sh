@@ -32,6 +32,9 @@ else:
     print("SQLite mode or URI unset; skipping DB wait")
 PY
 
+# ---- テーブル初期化（マイグレーション非対応環境用フォールバック） ----
+python3 -c "import app.models; from app.db import init_db; init_db()" 2>/dev/null || echo "[entrypoint] init_db skipped or failed (non-fatal)"
+
 # ---- Flask 起動 ----
 export FLASK_APP=app.factory
 echo "[entrypoint] starting flask..."

@@ -349,12 +349,23 @@ components:
     TariffRate:
       type: object
       properties:
+      oneOf:
+        - required: [ad_valorem_rate]
+        - required: [specific]
         type:
           type: string
           enum: [ad_valorem, specific, mixed]
+        ad_valorem_rate:
+          type: number
+          format: float
+          description: "0.05 = 5%"
+        # If ad_valorem_pct is provided, it MUST equal ad_valorem_rate*100
+        # ad_valorem_rate is required when ad_valorem_pct is present
         ad_valorem_pct:
           type: number
           format: float
+          deprecated: true
+          description: "deprecated; 5.0 = 5%. Must match ad_valorem_rate*100. Removal in next major version."
         specific:
           type: number
           format: float
@@ -374,8 +385,9 @@ components:
           $ref: '#/components/schemas/TariffRate'
         additional_duties:
           type: array
+          description: "Additional duties are returned at response level; base duty_rate excludes them."
           items:
-            $ref: '#/components/schemas/DutyComponent'
+            $ref: '#/components/schemas/AdditionalDuty'
         metadata:
           type: object
           properties:
@@ -437,7 +449,7 @@ components:
             components:
               type: array
               items:
-                $ref: '#/components/schemas/DutyComponent'
+                $ref: '#/components/schemas/AdditionalDuty'
         applied_rates:
           type: object
           properties:
@@ -667,7 +679,7 @@ components:
         final_hs_code: { type: string }
         final_source: { type: string }
         duty_rate_override:
-          $ref: '#/components/schemas/TariffRate'
+          $ref: '#/components/schemas/DutyRateOverride'
         review_required: { type: boolean }
         review_comment: { type: string }
         reviewed_by: { type: string }
@@ -715,6 +727,9 @@ components:
     HSClassificationSummary:
       type: object
       properties:
+        status:
+          type: string
+          enum: [pending, classified, reviewed]
         final_hs_code: { type: string }
         final_source: { type: string }
         review_required: { type: boolean }

@@ -6,7 +6,7 @@ def test_receive_order_status_paid(client):
     """Test receiving PAID order status"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-123/status",
-        headers={"X-API-Key": "dev-api-key-change-me"},
+        headers={"Authorization": "Bearer test-api-key"},
         json={"status": "PAID", "ts": "2025-12-03T10:00:00Z", "customer_region": "US"},
     )
 
@@ -26,7 +26,7 @@ def test_receive_order_status_canceled(client):
     """Test receiving CANCELED order status"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-456/status",
-        headers={"X-API-Key": "dev-api-key-change-me"},
+        headers={"Authorization": "Bearer test-api-key"},
         json={"status": "CANCELED", "ts": "2025-12-03T11:00:00Z"},
     )
 
@@ -37,7 +37,7 @@ def test_receive_order_status_invalid_api_key(client):
     """Test rejection with invalid API key"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-789/status",
-        headers={"X-API-Key": "wrong-key"},
+        headers={"Authorization": "Bearer wrong-key"},
         json={"status": "PAID", "ts": "2025-12-03T12:00:00Z"},
     )
 
@@ -60,7 +60,7 @@ def test_receive_order_status_invalid_status(client):
     """Test validation of status enum"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-111/status",
-        headers={"X-API-Key": "dev-api-key-change-me"},
+        headers={"Authorization": "Bearer test-api-key"},
         json={"status": "INVALID_STATUS", "ts": "2025-12-03T14:00:00Z"},
     )
 
@@ -73,7 +73,7 @@ def test_receive_order_status_missing_timestamp(client):
     """Test validation of required timestamp"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-222/status",
-        headers={"X-API-Key": "dev-api-key-change-me"},
+        headers={"Authorization": "Bearer test-api-key"},
         json={"status": "PAID"},
     )
 
@@ -87,7 +87,7 @@ def test_receive_order_status_invalid_timestamp_format(client):
     """Test validation of timestamp format"""
     resp = client.post(
         "/v1/integrations/orders/ORDER-333/status",
-        headers={"X-API-Key": "dev-api-key-change-me"},
+        headers={"Authorization": "Bearer test-api-key"},
         json={"status": "PAID", "ts": "not-a-timestamp"},
     )
 

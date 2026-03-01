@@ -42,15 +42,15 @@
 
 ### OpenAPI仕様
 - [openapi.yaml](../backend/openapi.yaml) - OpenAPI 3.0仕様書
-- 自動生成されたAPIドキュメント (CI/CDで生成)
+- OpenAPI 仕様は CI で検証（必要に応じて生成/更新）
 
 ### エンドポイント一覧
 
 #### コアAPI
-- `POST /v1/translate` - テキスト翻訳
-- `POST /v1/classify` - HS分類
-- `POST /v1/docs/package` - 書類作成
-- `POST /v1/pn/submit` - PN提出
+- POST /v1/translate/ingredients - 成分翻訳
+- POST /v1/classify/hs - HS分類
+- POST /v1/docs/clearance-pack - 通関書類パック生成
+- POST /v1/fda/prior-notice - PN申請
 
 #### ジョブAPI
 - `POST /v1/jobs` - ジョブ作成
@@ -162,7 +162,7 @@ make logs        # ログ表示
 
 ### 原則
 1. **コードと同時更新**: 仕様変更時はドキュメントとコードを同時にPR
-2. **自動生成の活用**: OpenAPI仕様は自動生成を活用
+2. **生成/検証の活用**: OpenAPI仕様は生成/検証の運用を明確化
 3. **バージョン管理**: リリースタグごとにドキュメントをバージョニング
 
 ### 更新手順
@@ -179,9 +179,9 @@ make logs        # ログ表示
 
 ## 関連リンク
 
-- [GitHub Repository](https://github.com/your-org/crossborder)
-- [Issue Tracker](https://github.com/your-org/crossborder/issues)
-- [Wiki](https://github.com/your-org/crossborder/wiki)
+- [GitHub Repository](https://github.com/mazatada/crossborder)
+- [Issue Tracker](https://github.com/mazatada/crossborder/issues)
+- [Wiki](https://github.com/mazatada/crossborder/wiki)
 
 ---
 
@@ -195,4 +195,4 @@ make logs        # ログ表示
 
 ---
 
-最終更新: 2025-12-05
+最終更新: 2026-01-01

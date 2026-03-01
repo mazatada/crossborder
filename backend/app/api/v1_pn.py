@@ -3,6 +3,10 @@ from sqlalchemy import func
 from app.db import db
 from app.models import Job
 from app.audit import record_event
+import traceback
+import logging
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint("v1_pn", __name__, url_prefix="/v1")
 
@@ -36,24 +40,45 @@ def fda_prior_notice():
             400,
         )
 
-    job = Job(
-        type="pn_submit",
-        status="queued",
-        attempts=0,
-        next_run_at=func.now(),
-        payload_json=data,
-        trace_id=trace_id,
-    )
-    db.session.add(job)
-    db.session.commit()
+    try:
+        job = Job(
+            type="pn_submit",
+            status="queued",
+            attempts=0,
+            next_run_at=func.now(),
+            payload_json=data,
+            trace_id=trace_id,
+        )
+        db.session.add(job)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        tb = traceback.format_exc()
+        logger.error(f"fda/prior-notice DB error: {e}\n{tb}")
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "error": {
+                        "code": "DB_ERROR",
+                        "message": str(e),
+                        "detail": tb,
+                    },
+                }
+            ),
+            500,
+        )
 
-    # 監査
-    record_event(
-        event="JOB_QUEUED",
-        trace_id=trace_id,
-        target_type="job",
-        target_id=job.id,
-        type=job.type,
-    )
+    # 監査（失敗しても202を返す）
+    try:
+        record_event(
+            event="JOB_QUEUED",
+            trace_id=trace_id,
+            target_type="job",
+            target_id=job.id,
+            type=job.type,
+        )
+    except Exception:
+        logger.warning("record_event failed in fda_prior_notice", exc_info=True)
 
     return jsonify({"job_id": job.id, "status": "queued"}), 202

@@ -1,0 +1,41 @@
+2026-01-09T12:18:04+09:00
+context:
+  branch: feature/hs-api-impl
+  files:
+    - backend/app/rules/predicates.py
+    - backend/app/rules/engine.py
+    - backend/app/api/v1_hs_rules.py
+    - backend/tests/test_api_hs_rules.py
+    - backend/openapi.yaml
+    - docs/if_spec_extended.md
+    - docs/spec/SPEC.md
+summary:
+  - 述語定義を単一ソース化し RuleEngine/Validator を統一レジストリ参照へ移行
+  - DSL仕様を docs に明記し、RuleDslError の field/severity を OpenAPI に反映
+  - Dockerイメージ再ビルド後に pytest -k hs_rules を実行して9件成功を確認
+next:
+  - RuleDslError.details のoptional/nullable定義をOpenAPI/SPECで整理
+  - 変更のコミットとPR更新（Issue #8 へ方針コメント済）
+refs:
+  - Issue: https://github.com/mazatada/crossborder/issues/8
+  - Tests: docker compose build backend; docker compose run --rm pytest -k hs_rules
+2026-01-09T18:16:34+09:00
+context:
+  branch: feature/hs-api-impl
+  files:
+    - backend/app/api/v1_hs_rules.py
+    - backend/app/api/v1_hs_review.py
+    - backend/app/api/v1_compliance.py
+    - backend/tests/test_api_hs_rules.py
+    - backend/tests/test_api_hs_review.py
+summary:
+  - HSルールCRUDに監査イベントを追加し、Error404フォーマットを統一
+  - HSレビュー更新で locked 状態の409競合を追加しテストで検証
+  - Dockerで pytest -k hs_rules / hs_review を実行し全てパス
+next:
+  - Issue #9 の残項目を確認し、Issue #8 のOpenAPI整合を進める
+  - 監査の trace_id/target_id 設計は Issue #10 で検討
+refs:
+  - Issue: https://github.com/mazatada/crossborder/issues/9
+  - Issue: https://github.com/mazatada/crossborder/issues/10
+  - Tests: docker compose run --rm pytest -k hs_rules; docker compose run --rm pytest -k hs_review

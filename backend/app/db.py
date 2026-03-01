@@ -18,9 +18,15 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB  # Postgres 以外でもimport自体はOK
 from sqlalchemy.orm import declarative_base, sessionmaker, scoped_session, relationship
 
+
 # --- Engine & Session ---
 def get_db_url():
-    return os.getenv("SQLALCHEMY_DATABASE_URI") or os.getenv("DB_URL") or "sqlite:///app.db"
+    return (
+        os.getenv("SQLALCHEMY_DATABASE_URI")
+        or os.getenv("DB_URL")
+        or "sqlite:///app.db"
+    )
+
 
 engine = create_engine(get_db_url(), pool_pre_ping=True, future=True)
 

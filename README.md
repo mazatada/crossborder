@@ -27,6 +27,14 @@ docker compose run --rm --entrypoint black backend --check app tests
 
 CI 上でも同じ `docker compose run` をステージに追加すれば、Python のスタイル・静的検知が本番環境と同じ依存で動きます。
 
+## OpenAPI 仕様の検証
+
+OpenAPI の必須キーが揃っているかを簡易検証するスクリプトを追加しています。CI ではこの検証を実行します。
+
+```bash
+docker compose run --rm -v ./scripts:/app/scripts backend python scripts/validate_openapi.py
+```
+
 ## Playwright で API スモークを走らせる
 
 Playwright テストは `frontend` 内にあり、API リクエスト経由で `/v1/health` や `/v1/translate/ingredients`、`/v1/classify/hs` を叩きます。CI で Playwright を動かすには、まずバックエンドを起動してから Node の依存をインストールします（`frontend/node_modules` は Compose の named volume にキャッシュされます）。

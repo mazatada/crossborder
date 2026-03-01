@@ -143,6 +143,13 @@
 
 ---
 
+
+## 6.1 互換性と表現ルール（上流規範）
+
+- 互換性は追加のみ。破壊的変更は不可。
+- 関税率表現は小数（例: 0.05 = 5%）に統一。
+- Complianceの鮮度は"最新"または"最終計算時点のスナップショット"として定義する。
+- 詳細仕様は `docs/if_spec_extended.md` を正とする。
 ## 7. 運用設計
 
 * Webhook リプレイ／一時停止／再送機能をUIに実装
@@ -153,6 +160,24 @@
 ---
 
 ## 8. 今後の開発タスク（ToDo）
+### 8.1 仕様リンク（該当Issue/関連ソース）
+
+- Issue: #7（duty_rate移行、Compliance鮮度、DSL定義の整合）
+- 関連セクション: 2. 機能スコープ / 3.3 Pull API / 6. ID・フォーマット規約 / 9. 非機能要件
+- 関連仕様/実装ファイル:
+  - docs/if_spec_extended.md
+  - docs/openapi_diff_extended.yaml
+  - backend/openapi.yaml
+  - backend/app/api/v1_classify.py
+  - frontend/src/types.ts
+  - docs/api_design_hs_classification.md
+  - docs/spec/backend_spec_v1_draft.md
+  - docs/spec/SPEC.md
+
+
+- デプロイ戦略（Composeベース）: docs/deployment_strategy.md
+- 仕様マイルストーン: docs/spec/spec_milestone_plan.md
+
 
 | 項目                          | 内容                    | 期日 | 担当      |
 | --------------------------- | --------------------- | -- | ------- |

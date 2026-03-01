@@ -6,6 +6,7 @@ on:
       - main
       - master
       - feat/** # keep CI active on feature branches
+      - fix/**  # keep CI active on fix branches
   pull_request:
     branches:
       - main
@@ -30,17 +31,19 @@ jobs:
           push: false
           load: true
           tags: crossborder-backend:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          no-cache: true  # ← キャッシュ無効化（修正反映漏れ防止）
+
+      - name: Force rebuild all compose services
+        run: docker compose build --no-cache
 
       - name: Python lint (ruff)
         run: docker compose run --rm --entrypoint ruff backend check app tests
 
       - name: Python style (black)
-        run: docker compose run --rm --entrypoint black backend --check app
+        run: docker compose run --rm --entrypoint black backend --check app tests
 
       - name: Python type check (mypy)
-        run: docker compose run --rm --entrypoint mypy backend app
+        run: docker compose run --rm --entrypoint mypy backend app tests
 
       - name: Generate ERD and DDL
         run: docker compose run --rm -v ${{ github.workspace }}/scripts:/app/scripts backend python scripts/generate_erd.py
@@ -64,6 +67,10 @@ jobs:
 
       - name: Run Playwright API smoke tests (dockerized)
         run: docker compose run --rm playwright
+
+      - name: Show backend logs (debug)
+        if: always()
+        run: docker compose logs backend --tail 100
 
       - name: Upload Playwright Artifacts
         if: failure()

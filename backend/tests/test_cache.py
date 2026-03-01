@@ -73,9 +73,6 @@ class TestHSCache:
         assert cache.get("key3") is not None
 
 
-
-
-
 class TestClassifierCache:
     """ClassifierとCacheの統合テスト"""
 

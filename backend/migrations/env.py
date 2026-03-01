@@ -1,4 +1,3 @@
-from logging.config import fileConfig  # 使わないが互換のため残してOK
 import logging
 from sqlalchemy import engine_from_config, pool
 from alembic import context
