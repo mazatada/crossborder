@@ -36,17 +36,22 @@ def next_backoff(attempt: int) -> timedelta:
 def _is_sqlite(session) -> bool:
     return session.get_bind().dialect.name == "sqlite"
 
+
 def pick_batch(session, batch: int = 1):
     if _is_sqlite(session):
         # SQLite: シンプルにSELECTしてからUPDATE (FOR UPDATE SKIP LOCKEDやRETURNINGは非同期同時実行以外なら問題ないため使わない)
-        sql_sel = text("SELECT id, type, payload_json, trace_id, attempts FROM jobs WHERE status IN ('queued','retrying') AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP) ORDER BY next_run_at ASC LIMIT :batch")
+        sql_sel = text(
+            "SELECT id, type, payload_json, trace_id, attempts FROM jobs WHERE status IN ('queued','retrying') AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP) ORDER BY next_run_at ASC LIMIT :batch"
+        )
         rows = session.execute(sql_sel, {"batch": batch}).mappings().all()
         if not rows:
             return []
         job_ids = [r["id"] for r in rows]
         bind_placeholders = ", ".join(f":id_{i}" for i in range(len(job_ids)))
         bind_params = {f"id_{i}": j_id for i, j_id in enumerate(job_ids)}
-        sql_upd = text(f"UPDATE jobs SET status='running', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP WHERE id IN ({bind_placeholders})")
+        sql_upd = text(
+            f"UPDATE jobs SET status='running', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP WHERE id IN ({bind_placeholders})"
+        )
         session.execute(sql_upd, bind_params)
         # 返り値は j.id, j.type, j.payload_json, j.trace_id, j.attempts となるように合わせる
         updated_rows = []
@@ -74,6 +79,7 @@ def pick_batch(session, batch: int = 1):
     )
     return session.execute(sql, {"batch": batch}).mappings().all()
 
+
 def complete(session, job_id, result_json):
     is_sq = _is_sqlite(session)
     now_func = "CURRENT_TIMESTAMP" if is_sq else "now()"
@@ -99,9 +105,11 @@ def schedule_retry(session, job_id, err: JobError, attempts: int):
     now_func = "CURRENT_TIMESTAMP" if is_sq else "now()"
     tbl = "jobs" if is_sq else "public.jobs"
     backoff = next_backoff(attempts)
-    
+
     if is_sq:
-        next_run = f"datetime(CURRENT_TIMESTAMP, '+{int(backoff.total_seconds())} seconds')"
+        next_run = (
+            f"datetime(CURRENT_TIMESTAMP, '+{int(backoff.total_seconds())} seconds')"
+        )
     else:
         next_run = "now() + (:sec * interval '1 second')"
 
@@ -117,7 +125,9 @@ def schedule_retry(session, job_id, err: JobError, attempts: int):
     )
     if not is_sq:
         sql = sql.bindparams(bindparam("err", type_=JSONB))
-        session.execute(sql, {"err": err.to_json(), "sec": backoff.total_seconds(), "id": job_id})
+        session.execute(
+            sql, {"err": err.to_json(), "sec": backoff.total_seconds(), "id": job_id}
+        )
     else:
         session.execute(sql, {"err": str(err.to_json()), "id": job_id})
 

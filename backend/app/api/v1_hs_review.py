@@ -156,7 +156,7 @@ def update_hs_classification(id: str) -> Tuple[Response, int]:
         trace_id=record.trace_id,
         event="hs.review.update",
         target_type="hs_classification",
-        target_id=record.id,
+        target_id=str(record.id),
         review_required=record.review_required,
     )
 

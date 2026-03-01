@@ -52,9 +52,7 @@ class TestRuleEngine:
     def test_category_is(self):
         """category_is述語のテスト"""
         assert category_is("confectionery", "confectionery") is True
-        assert (
-            category_is("Confectionery", "confectionery") is True
-        )  # 大文字小文字無視
+        assert category_is("Confectionery", "confectionery") is True  # 大文字小文字無視
         assert category_is("beverages", "confectionery") is False
         assert category_is(None, "confectionery") is False
 
@@ -77,24 +75,12 @@ class TestRuleEngine:
         ]
 
         # 最小値のみ
-        assert (
-            ingredient_pct_threshold(ingredients, "ing_wheat_flour", 30.0)
-            is True
-        )
-        assert (
-            ingredient_pct_threshold(ingredients, "ing_wheat_flour", 40.0)
-            is False
-        )
+        assert ingredient_pct_threshold(ingredients, "ing_wheat_flour", 30.0) is True
+        assert ingredient_pct_threshold(ingredients, "ing_wheat_flour", 40.0) is False
 
         # 範囲指定
-        assert (
-            ingredient_pct_threshold(ingredients, "ing_sugar", 20.0, 30.0)
-            is True
-        )
-        assert (
-            ingredient_pct_threshold(ingredients, "ing_sugar", 30.0, 40.0)
-            is False
-        )
+        assert ingredient_pct_threshold(ingredients, "ing_sugar", 20.0, 30.0) is True
+        assert ingredient_pct_threshold(ingredients, "ing_sugar", 30.0, 40.0) is False
 
         # 存在しない成分
         assert ingredient_pct_threshold(ingredients, "ing_cocoa", 10.0) is False

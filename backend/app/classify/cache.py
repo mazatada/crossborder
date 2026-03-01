@@ -42,7 +42,7 @@ class InMemoryCache(CacheBackend):
     """インメモリキャッシュ (開発・単一インスタンス用)"""
 
     def __init__(self, max_size: int = 1000):
-        self.cache = OrderedDict()
+        self.cache: OrderedDict[str, Dict] = OrderedDict()
         self.max_size = max_size
         self.hit_count = 0
         self.miss_count = 0
@@ -159,6 +159,7 @@ class RedisCache(CacheBackend):
 
 
 _SHARED_IN_MEMORY_CACHE = None
+
 
 class HSCache:
     """HSキャッシュマネージャー"""

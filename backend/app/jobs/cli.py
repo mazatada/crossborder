@@ -117,7 +117,9 @@ def scheduler_loop():
 
 def pick_batch(session, batch=PICK_BATCH):
     if _is_sqlite(session):
-        sql_sel = text("SELECT id FROM jobs WHERE status IN ('queued','retrying') AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP) ORDER BY next_run_at ASC LIMIT :batch")
+        sql_sel = text(
+            "SELECT id FROM jobs WHERE status IN ('queued','retrying') AND (next_run_at IS NULL OR next_run_at <= CURRENT_TIMESTAMP) ORDER BY next_run_at ASC LIMIT :batch"
+        )
         rows = session.execute(sql_sel, {"batch": batch}).fetchall()
         if not rows:
             session.commit()
@@ -125,7 +127,9 @@ def pick_batch(session, batch=PICK_BATCH):
         ids = [r[0] for r in rows]
         bind_placeholders = ", ".join(f":id_{i}" for i in range(len(ids)))
         bind_params = {f"id_{i}": job_id for i, job_id in enumerate(ids)}
-        sql_upd = text(f"UPDATE jobs SET status='running', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP WHERE id IN ({bind_placeholders})")
+        sql_upd = text(
+            f"UPDATE jobs SET status='running', attempts=attempts+1, updated_at=CURRENT_TIMESTAMP WHERE id IN ({bind_placeholders})"
+        )
         session.execute(sql_upd, bind_params)
     else:
         rows = session.execute(
@@ -338,7 +342,7 @@ def requeue_job(job_id: int, *, session=None):
         event="JOB_REQUEUED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=job.id,
+        target_id=str(job.id),
         type=job.type,
     )
     return job
@@ -358,7 +362,7 @@ def cancel_job(job_id: int, *, session=None):
         event="JOB_CANCELED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=job.id,
+        target_id=str(job.id),
         type=job.type,
     )
     return job
