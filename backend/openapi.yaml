@@ -661,6 +661,7 @@ components:
 
     HSRuleEffect:
       type: object
+      required: [hs_code]
       properties:
         hs_code: { type: string }
         weight:  { type: number, format: float }
@@ -681,13 +682,14 @@ components:
         effect: { $ref: '#/components/schemas/HSRuleEffect' }
         status: { type: string, enum: [draft, active, inactive] }
         version: { type: integer }
-        created_by: { type: string }
-        updated_by: { type: string }
+        created_by: { type: string, nullable: true }
+        updated_by: { type: string, nullable: true }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
 
     HSRuleCreate:
       type: object
+      required: [name, condition_dsl, effect]
       properties:
         name: { type: string }
         description: { type: string }
@@ -810,14 +812,14 @@ components:
           type: object
           nullable: true
           properties:
-            clearance_pack_job_id: { type: string }
-            clearance_pack_status: { type: string }
+            clearance_pack_job_id: { type: string, nullable: true }
+            clearance_pack_status: { type: string, nullable: true }
             prior_notice_required: { type: boolean }
-            prior_notice_status: { type: string }
+            prior_notice_status: { type: string, nullable: true }
         audit:
           type: object
           properties:
-            last_updated_by: { type: string }
+            last_updated_by: { type: string, nullable: true }
             last_updated_at: { type: string, format: date-time }
 
     HSResponse:

@@ -275,9 +275,11 @@ class TestClassifyHSAPI:
     @pytest.mark.postgres
     def test_classify_cache_hit(self, client, api_key_header):
         """キャッシュヒットの確認"""
+        import uuid
+        test_id = uuid.uuid4().hex[:8]
         payload = {
             "product": {
-                "name": "Cache Test Product",
+                "name": f"Cache Test Product {test_id}",
                 "category": "confectionery",
                 "ingredients": [{"id": "ing_wheat_flour", "pct": 40.0}],
                 "process": ["baking"],
