@@ -40,6 +40,7 @@ def fda_prior_notice():
             400,
         )
 
+    from app.logging_conf import get_trace_id
     try:
         job = Job(
             type="pn_submit",
@@ -47,7 +48,7 @@ def fda_prior_notice():
             attempts=0,
             next_run_at=func.now(),
             payload_json=data,
-            trace_id=trace_id,
+            trace_id=trace_id or get_trace_id(),
         )
         db.session.add(job)
         db.session.commit()

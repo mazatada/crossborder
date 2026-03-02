@@ -53,6 +53,10 @@ def _now_utc():
 
 def _log(**kw):
     kw.setdefault("ts", _now_utc().isoformat())
+    from app.logging_conf import get_trace_id
+    tid = get_trace_id()
+    if tid:
+        kw.setdefault("trace_id", tid)
     print(json.dumps(kw, ensure_ascii=False), flush=True)
 
 
@@ -208,7 +212,7 @@ def _after_success(job, result):
             raise RuntimeError(f"webhook status {status}")
         record_event(
             event="WEBHOOK_POST",
-            trace_id=job.trace_id or "",
+            trace_id=job.trace_id,
             payload={
                 "url": os.getenv("WEBHOOK_URL", ""),
                 "status": resp.get("status"),
@@ -370,7 +374,7 @@ def requeue_job(job_id: int, *, session=None):
         event="JOB_REQUEUED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=str(job.id),
+        target_id=job.id,
         type=job.type,
     )
     return job
@@ -390,7 +394,7 @@ def cancel_job(job_id: int, *, session=None):
         event="JOB_CANCELED",
         trace_id=job.trace_id,
         target_type="job",
-        target_id=str(job.id),
+        target_id=job.id,
         type=job.type,
     )
     return job
@@ -419,6 +423,12 @@ def worker_once(session):
     done = 0
     for job in batch:
         t0 = time.time()
+        
+        token = None
+        from app.logging_conf import set_trace_id, reset_trace_id
+        if job.trace_id:
+            token = set_trace_id(job.trace_id)
+            
         try:
             # 0) ハートビートを先に刻んで可視性タイムアウトを延長
             _heartbeat(session, job)
@@ -561,6 +571,10 @@ def worker_once(session):
                     job_id=job.id,
                     error=str(e2),
                 )
+        finally:
+            if token:
+                reset_trace_id(token)
+
     return done
 
 
@@ -591,6 +605,9 @@ def _get_mode():
 
 
 def main():
+    from app.logging_conf import setup_logging
+    setup_logging()
+    
     mode = _get_mode()
     if mode == "worker":
         worker_loop()

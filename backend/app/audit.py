@@ -91,7 +91,7 @@ def record_event(
     event: str,
     trace_id: Optional[str] = None,
     target_type: Optional[str] = None,
-    target_id: Optional[str] = None,
+    target_id: Optional[int] = None,
     target_key: Optional[str] = None,
     **details: Any,
 ) -> None:
@@ -101,7 +101,10 @@ def record_event(
     import uuid
 
     if not trace_id:
-        trace_id = f"audit-{uuid.uuid4().hex[:8]}"
+        from app.logging_conf import get_trace_id
+        trace_id = get_trace_id()
+        if not trace_id:
+            trace_id = f"audit-{uuid.uuid4().hex[:8]}"
 
     # Backwards compatibility: use target_key if provided, else target_id
     effective_target = target_key if target_key is not None else target_id
