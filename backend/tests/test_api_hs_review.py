@@ -126,7 +126,7 @@ def test_hs_classification_state_transition_defense():
     """Test that ORM @validates hook correctly blocks backward state transitions"""
     import pytest
     from app.models import HSClassification
-    
+
     # Normal forward creation
     record = HSClassification(
         trace_id="test-val-1",
@@ -134,9 +134,11 @@ def test_hs_classification_state_transition_defense():
         hs_candidates=[],
         final_hs_code="1234.56",
         required_uom="kg",
-        status="reviewed"
+        status="reviewed",
     )
-    
+
     # Assert backward transition throws ValueError immediately on assignment
-    with pytest.raises(ValueError, match="Invalid state transition from reviewed to pending"):
+    with pytest.raises(
+        ValueError, match="Invalid state transition from reviewed to pending"
+    ):
         record.status = "pending"

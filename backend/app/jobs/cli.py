@@ -55,6 +55,7 @@ def _now_utc():
 def _log(**kw):
     kw.setdefault("ts", _now_utc().isoformat())
     from app.logging_conf import get_trace_id
+
     tid = get_trace_id()
     if tid:
         kw.setdefault("trace_id", tid)
@@ -114,36 +115,63 @@ def scheduler_tick(session):
 def _cleanup_old_data(session):
     try:
         from app.models import WebhookDLQ, AuditEvent
+
         now = _now_utc()
-        
-        dlq_ids = [r[0] for r in session.query(WebhookDLQ.id).filter(WebhookDLQ.expires_at < now).limit(500).all()]
+
+        dlq_ids = [
+            r[0]
+            for r in session.query(WebhookDLQ.id)
+            .filter(WebhookDLQ.expires_at < now)
+            .limit(500)
+            .all()
+        ]
         if dlq_ids:
-            session.query(WebhookDLQ).filter(WebhookDLQ.id.in_(dlq_ids)).delete(synchronize_session=False)
+            session.query(WebhookDLQ).filter(WebhookDLQ.id.in_(dlq_ids)).delete(
+                synchronize_session=False
+            )
 
         limit_date = now - timedelta(days=90)
         audit_deleted_count = 0
         try:
             # Using ORM prevents raw SQL dialect differences and avoids locks by limiting batch size
-            audit_ids = [r[0] for r in session.query(AuditEvent.id).filter(AuditEvent.ts < limit_date).limit(1000).all()]
+            audit_ids = [
+                r[0]
+                for r in session.query(AuditEvent.id)
+                .filter(AuditEvent.ts < limit_date)
+                .limit(1000)
+                .all()
+            ]
             if audit_ids:
-                session.query(AuditEvent).filter(AuditEvent.id.in_(audit_ids)).delete(synchronize_session=False)
+                session.query(AuditEvent).filter(AuditEvent.id.in_(audit_ids)).delete(
+                    synchronize_session=False
+                )
                 audit_deleted_count = len(audit_ids)
         except SQLAlchemyError:
             session.rollback()
             # Split-brain fallback: If 'ts' doesn't exist, the table was created by audit.py with 'at' column
             is_sq = _is_sqlite(session)
             tbl = "audit_events" if is_sq else "public.audit_events"
-            rows = session.execute(text(f"SELECT id FROM {tbl} WHERE at < :limit_date LIMIT 1000"), {"limit_date": limit_date}).fetchall()
+            rows = session.execute(
+                text(f"SELECT id FROM {tbl} WHERE at < :limit_date LIMIT 1000"),
+                {"limit_date": limit_date},
+            ).fetchall()
             ids = [r[0] for r in rows]
             if ids:
                 bind_placeholders = ", ".join(f":id_{i}" for i in range(len(ids)))
                 bind_params = {f"id_{i}": val for i, val in enumerate(ids)}
-                session.execute(text(f"DELETE FROM {tbl} WHERE id IN ({bind_placeholders})"), bind_params)
+                session.execute(
+                    text(f"DELETE FROM {tbl} WHERE id IN ({bind_placeholders})"),
+                    bind_params,
+                )
                 audit_deleted_count = len(ids)
-            
+
         if dlq_ids or audit_deleted_count > 0:
             session.commit()
-            _log(event="CLEANUP_TICK", dlq_deleted=len(dlq_ids), audit_deleted=audit_deleted_count)
+            _log(
+                event="CLEANUP_TICK",
+                dlq_deleted=len(dlq_ids),
+                audit_deleted=audit_deleted_count,
+            )
     except Exception as e:
         session.rollback()
         _log(level="error", event="CLEANUP_ERROR", error=str(e))
@@ -479,12 +507,13 @@ def worker_once(session):
     done = 0
     for job in batch:
         t0 = time.time()
-        
+
         token = None
         from app.logging_conf import set_trace_id, reset_trace_id
+
         if job.trace_id:
             token = set_trace_id(job.trace_id)
-            
+
         try:
             # 0) ハートビートを先に刻んで可視性タイムアウトを延長
             _heartbeat(session, job)
@@ -662,8 +691,9 @@ def _get_mode():
 
 def main():
     from app.logging_conf import setup_logging
+
     setup_logging()
-    
+
     mode = _get_mode()
     if mode == "worker":
         worker_loop()

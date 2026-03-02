@@ -34,6 +34,7 @@ def docs_clearance_pack():
         )
 
     from app.logging_conf import get_trace_id
+
     try:
         job = Job(
             type="clearance_pack",

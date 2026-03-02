@@ -29,7 +29,13 @@ class Config:
 
 
 def create_app():
-    from app.logging_conf import setup_logging, get_trace_id, set_trace_id, reset_trace_id
+    from app.logging_conf import (
+        setup_logging,
+        get_trace_id,
+        set_trace_id,
+        reset_trace_id,
+    )
+
     setup_logging()
 
     app = Flask(__name__)

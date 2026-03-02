@@ -163,5 +163,7 @@ class HSClassification(Base):
             if new_rank == -1:
                 raise ValueError(f"Invalid state: '{value}' is an unrecognized status")
             if old_rank > new_rank and old_rank != -1:
-                raise ValueError(f"Invalid state transition from {self.status} to {value}")
+                raise ValueError(
+                    f"Invalid state transition from {self.status} to {value}"
+                )
         return value

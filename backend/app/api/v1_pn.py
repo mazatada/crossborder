@@ -41,6 +41,7 @@ def fda_prior_notice():
         )
 
     from app.logging_conf import get_trace_id
+
     try:
         job = Job(
             type="pn_submit",

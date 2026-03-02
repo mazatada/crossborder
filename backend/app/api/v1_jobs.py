@@ -78,6 +78,7 @@ def create_job():
         )
 
     from app.logging_conf import get_trace_id
+
     job = Job(
         type=jtype,
         status="queued",

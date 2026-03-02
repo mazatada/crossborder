@@ -37,11 +37,11 @@ def setup_logging(level: int = logging.INFO) -> None:
     a formatter that includes the trace_id.
     """
     root_logger = logging.getLogger()
-    
+
     # Remove existing handlers to avoid duplicates during test runs
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
-        
+
     root_logger.setLevel(level)
 
     handler = logging.StreamHandler()
