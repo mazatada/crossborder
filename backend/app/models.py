@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from sqlalchemy.orm import validates
 from sqlalchemy import UniqueConstraint
 from .db import db, Base
 
@@ -41,7 +42,7 @@ class AuditEvent(Base):
     trace_id: str = db.Column(db.String(64), index=True, nullable=False)  # type: ignore
     event: str = db.Column(db.String(64), nullable=False)  # type: ignore
     payload: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
-    ts: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    ts: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)  # type: ignore
 
 
 class PNSubmission(Base):
@@ -105,7 +106,7 @@ class WebhookDLQ(Base):
     last_status_code: Optional[int] = db.Column(db.Integer, nullable=True)  # type: ignore
     replayed: bool = db.Column(db.Boolean, default=False, nullable=False)  # type: ignore
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
-    expires_at: datetime = db.Column(db.DateTime, nullable=False)  # type: ignore
+    expires_at: datetime = db.Column(db.DateTime, nullable=False, index=True)  # type: ignore
 
 
 class HSClassification(Base):
@@ -152,3 +153,15 @@ class HSClassification(Base):
 
     def __repr__(self) -> str:
         return f"<HSClassification {self.id} hs={self.final_hs_code} trace={self.trace_id}>"
+
+    @validates("status")
+    def validate_status(self, key, value):
+        if self.status:
+            order = {"pending": 0, "classified": 1, "reviewed": 2, "locked": 3}
+            old_rank = order.get(self.status, -1)
+            new_rank = order.get(value, -1)
+            if new_rank == -1:
+                raise ValueError(f"Invalid state: '{value}' is an unrecognized status")
+            if old_rank > new_rank and old_rank != -1:
+                raise ValueError(f"Invalid state transition from {self.status} to {value}")
+        return value

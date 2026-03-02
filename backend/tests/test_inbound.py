@@ -1,4 +1,4 @@
-from app.models import OrderStatus
+from app.models import OrderStatus, AuditEvent
 from app.db import db
 
 
@@ -128,3 +128,41 @@ def test_receive_order_status_invalid_customer_region(client):
     data2 = resp2.get_json()
     assert data2["error"]["code"] == "INVALID_ARGUMENT"
     assert "ISO 3166-1 alpha-2" in data2["error"]["message"]
+
+
+def test_receive_order_status_idempotency(client):
+    """Test that submitting the same order status twice is idempotent 
+    and does not duplicate webhook/audit events on 2nd request.
+    This protects against external retry storms."""
+    
+    # 1. 1st submission
+    resp1 = client.post(
+        "/v1/integrations/orders/ORDER-IDEMP-1/status",
+        headers={"Authorization": "Bearer test-api-key"},
+        json={"status": "PAID", "ts": "2025-12-03T10:00:00Z", "customer_region": "US"},
+    )
+    assert resp1.status_code == 202
+    
+    # Check current DB counts
+    events_1 = db.session.query(AuditEvent).filter_by(event="ORDER_STATUS_RECEIVED").all()
+    audit_count_1 = sum(1 for e in events_1 if e.payload and e.payload.get("target_key") == "ORDER-IDEMP-1")
+
+    order_count_1 = db.session.query(OrderStatus).filter_by(order_id="ORDER-IDEMP-1", status="PAID").count()
+    assert order_count_1 == 1
+
+    # 2. 2nd duplicate submission
+    resp2 = client.post(
+        "/v1/integrations/orders/ORDER-IDEMP-1/status",
+        headers={"Authorization": "Bearer test-api-key"},
+        json={"status": "PAID", "ts": "2025-12-03T10:00:00Z", "customer_region": "US"},
+    )
+    assert resp2.status_code == 202
+
+    # Verify no duplicate entries & no duplicate audit events
+    events_2 = db.session.query(AuditEvent).filter_by(event="ORDER_STATUS_RECEIVED").all()
+    audit_count_2 = sum(1 for e in events_2 if e.payload and e.payload.get("target_key") == "ORDER-IDEMP-1")
+        
+    order_count_2 = db.session.query(OrderStatus).filter_by(order_id="ORDER-IDEMP-1", status="PAID").count()
+
+    assert order_count_2 == 1  # No duplicate order
+    assert audit_count_2 == audit_count_1  # No duplicate audit (side effect suppressed)

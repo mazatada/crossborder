@@ -86,6 +86,44 @@ def _detect_schema(conn) -> str:
         return "new"
 
 
+def _extract_safe_audit_fields(data: Any) -> Any:
+    """Extracts only strictly safe, known fields (allow-list) for audit logging 
+    to completely prevent accidental PII leakage (GDPR compliance)."""
+    if not isinstance(data, dict):
+        return data
+
+    allowed_keys = {
+        # General IDs & Types
+        "order_id", "product_id", "job_id", "webhook_id", "media_id", 
+        "event_type", "type", "target_type", "target_key", "target_id", "retry_job_id",
+        # Statuses & Codes
+        "status", "hs_code", "final_hs_code", "category",
+        # Request/Response Metadata
+        "latency_ms", "status_code", "retriable", "attempts", "backoff_sec", "reason",
+        # Error tracking safely
+        "error", "error_class", "error_message",
+        # Public / Non-PII configuration
+        "url", "customer_region", "origin_country", "classification_method",
+        "review_required", "reviewed_by"
+    }
+
+    safe_payload = {}
+    for k, v in data.items():
+        if k in allowed_keys:
+            # If the value is a nested dict (like duty_rate_override or error), 
+            # we keep it flat if it's safe (e.g. error dicts), or stringify.
+            if isinstance(v, dict) and k in ["error"]:
+                safe_payload[k] = _extract_safe_audit_fields(v)
+            elif isinstance(v, (dict, list)):
+                # Complex nested objects are converted to string flags or omitted entirely
+                # to prevent deep hidden PII.
+                safe_payload[k] = f"[{type(v).__name__} omitted for privacy]"
+            else:
+                safe_payload[k] = v
+                
+    return safe_payload
+
+
 def record_event(
     *,
     event: str,
@@ -108,6 +146,9 @@ def record_event(
 
     # Backwards compatibility: use target_key if provided, else target_id
     effective_target = target_key if target_key is not None else target_id
+
+    # Secure Allow-list Extraction for PII protection
+    details = _extract_safe_audit_fields(details)
 
     try:
         engine = db.engine

@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+import threading
 import json
 import traceback
 from datetime import datetime, timezone, timedelta
@@ -110,7 +111,62 @@ def scheduler_tick(session):
         _log(level="error", event="SCHEDULER_ERROR", error=str(e))
 
 
+def _cleanup_old_data(session):
+    try:
+        from app.models import WebhookDLQ, AuditEvent
+        now = _now_utc()
+        
+        dlq_ids = [r[0] for r in session.query(WebhookDLQ.id).filter(WebhookDLQ.expires_at < now).limit(500).all()]
+        if dlq_ids:
+            session.query(WebhookDLQ).filter(WebhookDLQ.id.in_(dlq_ids)).delete(synchronize_session=False)
+
+        limit_date = now - timedelta(days=90)
+        audit_deleted_count = 0
+        try:
+            # Using ORM prevents raw SQL dialect differences and avoids locks by limiting batch size
+            audit_ids = [r[0] for r in session.query(AuditEvent.id).filter(AuditEvent.ts < limit_date).limit(1000).all()]
+            if audit_ids:
+                session.query(AuditEvent).filter(AuditEvent.id.in_(audit_ids)).delete(synchronize_session=False)
+                audit_deleted_count = len(audit_ids)
+        except SQLAlchemyError:
+            session.rollback()
+            # Split-brain fallback: If 'ts' doesn't exist, the table was created by audit.py with 'at' column
+            is_sq = _is_sqlite(session)
+            tbl = "audit_events" if is_sq else "public.audit_events"
+            rows = session.execute(text(f"SELECT id FROM {tbl} WHERE at < :limit_date LIMIT 1000"), {"limit_date": limit_date}).fetchall()
+            ids = [r[0] for r in rows]
+            if ids:
+                bind_placeholders = ", ".join(f":id_{i}" for i in range(len(ids)))
+                bind_params = {f"id_{i}": val for i, val in enumerate(ids)}
+                session.execute(text(f"DELETE FROM {tbl} WHERE id IN ({bind_placeholders})"), bind_params)
+                audit_deleted_count = len(ids)
+            
+        if dlq_ids or audit_deleted_count > 0:
+            session.commit()
+            _log(event="CLEANUP_TICK", dlq_deleted=len(dlq_ids), audit_deleted=audit_deleted_count)
+    except Exception as e:
+        session.rollback()
+        _log(level="error", event="CLEANUP_ERROR", error=str(e))
+
+
+def _cleanup_loop():
+    """Independent daemon thread loop for executing DB cleanup without blocking the main scheduler."""
+    while True:
+        try:
+            ctx, session = _db_session()
+            with ctx:
+                _cleanup_old_data(session)
+        except Exception as e:
+            _log(level="error", event="CLEANUP_LOOP_CRASH", error=str(e))
+        # Run cleanup once an hour
+        time.sleep(3600)
+
+
 def scheduler_loop():
+    # Spawn the cleanup job independently so it doesn't cause head-of-line blocking in the scheduler
+    t = threading.Thread(target=_cleanup_loop, daemon=True)
+    t.start()
+
     ctx, session = _db_session()
     with ctx:
         _log(event="SCHEDULER_START", interval_sec=SCHEDULER_INTERVAL_SEC)
