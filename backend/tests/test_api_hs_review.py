@@ -120,3 +120,25 @@ def test_hs_review_conflict_when_locked(client, api_key_header, db_session):
     assert resp.status_code == 409
     data = resp.get_json()
     assert data["error"]["class"] == "conflict"
+
+
+def test_hs_classification_state_transition_defense():
+    """Test that ORM @validates hook correctly blocks backward state transitions"""
+    import pytest
+    from app.models import HSClassification
+
+    # Normal forward creation
+    record = HSClassification(
+        trace_id="test-val-1",
+        product_name="test",
+        hs_candidates=[],
+        final_hs_code="1234.56",
+        required_uom="kg",
+        status="reviewed",
+    )
+
+    # Assert backward transition throws ValueError immediately on assignment
+    with pytest.raises(
+        ValueError, match="Invalid state transition from reviewed to pending"
+    ):
+        record.status = "pending"

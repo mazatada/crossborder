@@ -112,8 +112,8 @@ def receive_order_status(order_id: str):
     # Record audit event
     record_event(
         event="ORDER_STATUS_RECEIVED",
-        trace_id=f"order-{order_id}",
-        order_id=order_id,
+        target_type="Order",
+        target_key=order_id,
         status=status,
         customer_region=customer_region,
     )

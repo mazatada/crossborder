@@ -1,6 +1,8 @@
 # app/factory.py
 import os
-from flask import Flask
+import uuid
+import json
+from flask import Flask, request, g
 from flask_cors import CORS
 from app.api import (
     v1_misc,
@@ -27,9 +29,47 @@ class Config:
 
 
 def create_app():
+    from app.logging_conf import (
+        setup_logging,
+        get_trace_id,
+        set_trace_id,
+        reset_trace_id,
+    )
+
+    setup_logging()
+
     app = Flask(__name__)
     CORS(app)
     app.config.from_object(Config)
+
+    @app.before_request
+    def start_trace():
+        tid = request.headers.get("X-Trace-ID")
+        if not tid:
+            tid = f"req-{uuid.uuid4().hex[:8]}"
+        g.trace_id_token = set_trace_id(tid)
+
+    @app.after_request
+    def end_trace(response):
+        tid = get_trace_id()
+        if tid:
+            response.headers["X-Trace-ID"] = tid
+            # If the response is JSON, and it's a dict, safely inject trace_id
+            if response.is_json:
+                try:
+                    data = response.get_json(silent=True)
+                    if isinstance(data, dict) and "trace_id" not in data:
+                        data["trace_id"] = tid
+                        response.set_data(json.dumps(data))
+                except Exception:
+                    pass
+        return response
+
+    @app.teardown_request
+    def cleanup_trace(exception=None):
+        token = getattr(g, "trace_id_token", None)
+        if token:
+            reset_trace_id(token)
 
     # ── DB テーブル自動作成（Alembic 非適用環境のフォールバック）──
     from app import models  # noqa: F401

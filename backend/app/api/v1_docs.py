@@ -33,6 +33,8 @@ def docs_clearance_pack():
             400,
         )
 
+    from app.logging_conf import get_trace_id
+
     try:
         job = Job(
             type="clearance_pack",
@@ -46,7 +48,7 @@ def docs_clearance_pack():
                 "invoice_uom": invoice,
                 "invoice_payload": data.get("invoice_payload"),
             },
-            trace_id=trace_id,
+            trace_id=trace_id or get_trace_id(),
         )
         db.session.add(job)
         db.session.commit()

@@ -77,13 +77,15 @@ def create_job():
             400,
         )
 
+    from app.logging_conf import get_trace_id
+
     job = Job(
         type=jtype,
         status="queued",
         attempts=0,
         next_run_at=func.now(),
         payload_json=payload,
-        trace_id=trace_id,
+        trace_id=trace_id or get_trace_id(),
     )
     db.session.add(job)
     db.session.commit()
