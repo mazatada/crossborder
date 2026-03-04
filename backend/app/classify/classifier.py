@@ -134,7 +134,7 @@ class HSClassifier:
         rationale = []
 
         # 成分ベース (含有率付き)
-        ingredients = product_data.get("ingredients", [])
+        ingredients = product_data.get("ingredients") or []
         if ingredients:
             # 含有率でソート
             sorted_ingredients = sorted(
@@ -163,7 +163,7 @@ class HSClassifier:
                     )
 
         # 加工方法ベース
-        processes = product_data.get("process", [])
+        processes = product_data.get("process") or []
         if processes:
             rationale.append(f"{', '.join(processes)} process detected")
 

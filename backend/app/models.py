@@ -157,7 +157,7 @@ class HSClassification(Base):
     @validates("status")
     def validate_status(self, key, value):
         if self.status:
-            order = {"pending": 0, "classified": 1, "reviewed": 2, "locked": 3}
+            order = {"pending": 0, "in_progress": 1, "classified": 1, "locked": 2, "reviewed": 3, "superseded": 4}
             old_rank = order.get(self.status, -1)
             new_rank = order.get(value, -1)
             if new_rank == -1:
@@ -188,8 +188,14 @@ class Product(Base):
 
     # Final cached values from classification
     hs_base6: Optional[str] = db.Column(db.String(16), nullable=True)  # type: ignore
-    active_classification_id: Optional[int] = db.Column(db.Integer, db.ForeignKey("hs_classifications.id", ondelete="SET NULL"), nullable=True)  # type: ignore
+    active_classification_id: Optional[int] = db.Column(db.Integer, db.ForeignKey("hs_classifications.id", name="fk_product_active_classification", use_alter=True, ondelete="SET NULL"), nullable=True)  # type: ignore
     country_specific_codes: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
+    
+    active_classification = db.relationship(
+        "HSClassification", 
+        foreign_keys=[active_classification_id],
+        post_update=True
+    )
 
     status: str = db.Column(db.String(32), nullable=False, default="draft")  # type: ignore
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
