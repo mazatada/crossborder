@@ -13,7 +13,7 @@ from . import clearance_pack  # noqa: E402
 from . import echo  # noqa: E402
 from . import pn_submit  # noqa: E402
 from . import webhook_retry  # noqa: E402
-from . import hs_classify
+from . import hs_classify  # noqa: E402
 
 __all__ = [
     "clearance_pack",

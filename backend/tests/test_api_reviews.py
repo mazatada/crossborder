@@ -1,4 +1,3 @@
-import pytest
 from app.models import HSClassification, Product
 
 def test_list_hs_reviews(client, api_key_header, app, db_session):
@@ -47,7 +46,7 @@ def test_finalize_hs_review(client, api_key_header, db_session):
     assert product.active_classification_id == record.id
 
 def test_lock_hs_review(client, api_key_header, db_session):
-    record = HSClassification(trace_id="tr5", product_name="test5", hs_candidates=[], final_hs_code="", required_uom="kg", status="reviewed")
+    record = HSClassification(trace_id="tr5", product_name="test5", hs_candidates=[], final_hs_code="", required_uom="kg", status="pending")
     db_session.add(record)
     db_session.commit()
 

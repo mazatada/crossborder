@@ -178,13 +178,13 @@ def list_hs_reviews() -> Tuple[Response, int]:
     status = request.args.get("status")
     q = db.session.query(HSClassification)
     if status:
-        q = q.filter(HSClassification.status == status)
+        q = q.filter(HSClassification.status == status)  # type: ignore
     
     page = request.args.get("page", 1, type=int)
     limit = request.args.get("limit", 50, type=int)
     
     total = q.count()
-    records = q.order_by(HSClassification.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    records = q.order_by(HSClassification.id.desc()).offset((page - 1) * limit).limit(limit).all()  # type: ignore
 
     return jsonify({
         "data": [_serialize(r) for r in records],
@@ -311,7 +311,7 @@ def reopen_hs_classification(id: int) -> Tuple[Response, int]:
     product_id = record.product_id
     if product_id:
         # Check shipment references
-        has_shipment = db.session.query(Shipment.id).join(ShipmentLine).filter(
+        has_shipment = db.session.query(Shipment.id).join(ShipmentLine).filter(  # type: ignore
             ShipmentLine.product_id == product_id,
             Shipment.status != "canceled"
         ).first()

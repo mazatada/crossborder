@@ -113,7 +113,7 @@ def evaluate_compliance() -> Tuple[Response, int]:
     shipping_mode = data.get("shipping_mode")
     incoterm = data.get("incoterm")
     
-    if not all([product_id, destination_country]):
+    if getattr(product_id, "__class__", None) not in (int, str) or not isinstance(destination_country, str):
         return jsonify({"error": "Missing required fields: product_id, destination_country"}), 400
         
     # Enum / Format 厳格バリデーション (Phase 1 hotfix)
@@ -131,8 +131,8 @@ def evaluate_compliance() -> Tuple[Response, int]:
         
     allowed = True
     block_reasons = []
-    required_codes = []
-    required_fields = []
+    required_codes: list[str] = []
+    required_fields: list[str] = []
     notes = []
     
     # 簡易的なハードコードルール評価（MVPフェーズ用）

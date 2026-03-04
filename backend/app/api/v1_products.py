@@ -1,6 +1,5 @@
 import uuid
-from datetime import datetime
-from typing import Tuple, Any, Dict, Optional, List
+from typing import Tuple, Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request, Response
 from app.auth import require_api_key
@@ -109,7 +108,7 @@ def create_product() -> Tuple[Response, int]:
         trace_id=trace_id,
         event="product.created",
         target_type="product",
-        target_id=str(record.id),
+        target_id=record.id,
     )
 
     return jsonify(_serialize(record)), 201
@@ -160,7 +159,7 @@ def update_product(id: int) -> Tuple[Response, int]:
         trace_id=trace_id,
         event="product.updated",
         target_type="product",
-        target_id=str(record.id),
+        target_id=record.id,
     )
 
     return jsonify(_serialize(record)), 200
@@ -172,7 +171,7 @@ def get_products() -> Tuple[Response, int]:
     status = request.args.get("status")
     q = db.session.query(Product)
     if status:
-        q = q.filter(Product.status == status)
+        q = q.filter(Product.status == status)  # type: ignore
 
     page = request.args.get("page", 1, type=int)
     limit = request.args.get("limit", 50, type=int)
@@ -188,7 +187,7 @@ def get_products() -> Tuple[Response, int]:
 
     total = q.count()
 
-    records = q.order_by(Product.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    records = q.order_by(Product.id.desc()).offset((page - 1) * limit).limit(limit).all()  # type: ignore
 
     return jsonify({
         "data": [_serialize(r) for r in records],
@@ -211,7 +210,7 @@ def validate_product(id: int) -> Tuple[Response, int]:
     # 必須（出荷ブロッカー）
     required_fields = ["description_en", "origin_country", "processing_state", "physical_form", "unit_weight_g"]
     for field in required_fields:
-        if not getattr(record, field) and getattr(record, field) != False: # allow is_food=False
+        if not getattr(record, field) and getattr(record, field) is not False: # allow is_food=False
              errors.append({
                  "field": field,
                  "message": f"Missing required field: {field}",
@@ -266,7 +265,7 @@ def validate_product(id: int) -> Tuple[Response, int]:
         trace_id=trace_id,
         event="product.validated",
         target_type="product",
-        target_id=str(record.id),
+        target_id=record.id,
         valid=len(errors) == 0,
     )
 

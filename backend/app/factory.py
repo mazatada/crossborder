@@ -4,6 +4,7 @@ import uuid
 import json
 from flask import Flask, request, g
 from flask_cors import CORS
+
 from app.api import (
     v1_misc,
     v1_jobs,
@@ -72,7 +73,6 @@ def create_app():
                 # view_function 実行後なのでストリーム枯渇は起きず安全に読める
                 raw = request.get_data(as_text=True)
                 if raw:
-                    import json
                     req_body = json.loads(raw)
                     if isinstance(req_body, dict):
                         for k in list(req_body.keys()):

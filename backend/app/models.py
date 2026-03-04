@@ -193,7 +193,7 @@ class Product(Base):
     
     active_classification = db.relationship(
         "HSClassification", 
-        foreign_keys=[active_classification_id],
+        foreign_keys="[Product.active_classification_id]",
         post_update=True
     )
 
