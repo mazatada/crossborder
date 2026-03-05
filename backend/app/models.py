@@ -138,6 +138,7 @@ class HSClassification(Base):
     status: str = db.Column(db.String(16), nullable=True, default="classified")  # type: ignore
     final_source: Optional[str] = db.Column(db.String(32), nullable=True, default="system")  # type: ignore
     reviewed_by: Optional[str] = db.Column(db.String(128), nullable=True)  # type: ignore
+    locked_by: Optional[str] = db.Column(db.String(128), nullable=True)  # type: ignore
     reviewed_at: Optional[datetime] = db.Column(db.DateTime, nullable=True)  # type: ignore
     review_comment: Optional[str] = db.Column(db.Text, nullable=True)  # type: ignore
 

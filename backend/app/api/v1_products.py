@@ -128,7 +128,7 @@ def update_product(id: int) -> Tuple[Response, int]:
     updatable_fields = [
         "title", "external_ref", "description_en", "origin_country", "is_food",
         "processing_state", "physical_form", "unit_weight_g", "dimensions_mm",
-        "shelf_life_days", "packaging", "animal_derived_flags", "status"
+        "shelf_life_days", "packaging", "animal_derived_flags"
     ]
     
     # 厳密な型チェック (Strict Validation)

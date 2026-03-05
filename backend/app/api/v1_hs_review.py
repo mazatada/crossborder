@@ -234,6 +234,11 @@ def lock_hs_review(id: int) -> Tuple[Response, int]:
         return _error_409()
         
     record.status = "locked"
+    
+    operator_id = request.headers.get("X-Operator-Id")
+    if operator_id:
+        record.locked_by = operator_id
+        
     db.session.add(record)
     db.session.commit()
     
@@ -259,10 +264,20 @@ def finalize_hs_review(id: int) -> Tuple[Response, int]:
     if not final_hs_code:
         return jsonify({"error": "Missing required field: final_hs_code"}), 400
         
+    # Phase 1.5 Fix: Validate lock ownership if locked
+    if record.status == "locked" and record.locked_by:
+        operator_id = request.headers.get("X-Operator-Id")
+        if record.locked_by != operator_id:
+            return jsonify({
+                "error": "Forbidden: Classification is locked by another operator",
+                "locked_by": record.locked_by
+            }), 403
+            
     record.final_hs_code = final_hs_code
     record.reviewed_at = datetime.utcnow()
     record.status = "reviewed"
     record.review_required = False
+    record.locked_by = None
     
     if data.get("review_comment"):
         record.review_comment = data.get("review_comment")

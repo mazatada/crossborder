@@ -1,4 +1,3 @@
-import pytest
 
 def test_create_product(client, api_key_header):
     payload = {
