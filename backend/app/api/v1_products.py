@@ -48,19 +48,20 @@ def _serialize(record: Product) -> Dict[str, Any]:
         "created_at": record.created_at.isoformat() if record.created_at else None,
         "updated_at": record.updated_at.isoformat() if record.updated_at else None,
     }
-    
+
     from sqlalchemy.orm.attributes import instance_state
+
     state = instance_state(record)
     if "active_classification" in state.dict:
         if record.active_classification:
             res["active_classification"] = {
                 "id": str(record.active_classification.id),
                 "final_hs_code": record.active_classification.final_hs_code,
-                "status": record.active_classification.status
+                "status": record.active_classification.status,
             }
         else:
             res["active_classification"] = None
-            
+
     return res
 
 
@@ -78,11 +79,14 @@ def create_product() -> Tuple[Response, int]:
     is_food = data.get("is_food", False)
     if not isinstance(is_food, bool):
         return jsonify({"error": "Invalid field: is_food must be a boolean"}), 400
-        
+
     for num_field in ["unit_weight_g", "shelf_life_days"]:
         val = data.get(num_field)
         if val is not None and not isinstance(val, (int, float)):
-            return jsonify({"error": f"Invalid field: {num_field} must be a number"}), 400
+            return (
+                jsonify({"error": f"Invalid field: {num_field} must be a number"}),
+                400,
+            )
 
     record = Product(
         title=title,
@@ -97,7 +101,7 @@ def create_product() -> Tuple[Response, int]:
         shelf_life_days=data.get("shelf_life_days"),
         packaging=data.get("packaging"),
         animal_derived_flags=data.get("animal_derived_flags"),
-        status="draft"
+        status="draft",
     )
 
     db.session.add(record)
@@ -126,26 +130,53 @@ def update_product(id: int) -> Tuple[Response, int]:
         return jsonify({"error": "Invalid JSON"}), 400
 
     updatable_fields = [
-        "title", "external_ref", "description_en", "origin_country", "is_food",
-        "processing_state", "physical_form", "unit_weight_g", "dimensions_mm",
-        "shelf_life_days", "packaging", "animal_derived_flags"
+        "title",
+        "external_ref",
+        "description_en",
+        "origin_country",
+        "is_food",
+        "processing_state",
+        "physical_form",
+        "unit_weight_g",
+        "dimensions_mm",
+        "shelf_life_days",
+        "packaging",
+        "animal_derived_flags",
     ]
-    
+
     # 厳密な型チェック (Strict Validation)
     if "is_food" in data and not isinstance(data["is_food"], bool):
         return jsonify({"error": "Invalid field: is_food must be a boolean"}), 400
     for num_field in ["unit_weight_g", "shelf_life_days"]:
-        if num_field in data and data[num_field] is not None and not isinstance(data[num_field], (int, float)):
-            return jsonify({"error": f"Invalid field: {num_field} must be a number"}), 400
-    
+        if (
+            num_field in data
+            and data[num_field] is not None
+            and not isinstance(data[num_field], (int, float))
+        ):
+            return (
+                jsonify({"error": f"Invalid field: {num_field} must be a number"}),
+                400,
+            )
+
     # 運用中の破壊的変更をガード (Phase 1 hotfix)
-    critical_fields = ["is_food", "unit_weight_g", "processing_state", "physical_form", "origin_country"]
+    critical_fields = [
+        "is_food",
+        "unit_weight_g",
+        "processing_state",
+        "physical_form",
+        "origin_country",
+    ]
     if record.status != "draft":
         for field in critical_fields:
             if field in data and getattr(record, field) != data[field]:
-                return jsonify({
-                    "error": f"Cannot modify critical field '{field}' when product status is '{record.status}'"
-                }), 409
+                return (
+                    jsonify(
+                        {
+                            "error": f"Cannot modify critical field '{field}' when product status is '{record.status}'"
+                        }
+                    ),
+                    409,
+                )
 
     for field in updatable_fields:
         if field in data:
@@ -182,6 +213,7 @@ def get_products() -> Tuple[Response, int]:
     if include_str:
         includes = include_str.split(",")
         from sqlalchemy.orm import selectinload
+
         if "hs" in includes:
             q = q.options(selectinload(Product.active_classification))
 
@@ -189,14 +221,15 @@ def get_products() -> Tuple[Response, int]:
 
     records = q.order_by(Product.id.desc()).offset((page - 1) * limit).limit(limit).all()  # type: ignore
 
-    return jsonify({
-        "data": [_serialize(r) for r in records],
-        "meta": {
-            "total": total,
-            "page": page,
-            "limit": limit
-        }
-    }), 200
+    return (
+        jsonify(
+            {
+                "data": [_serialize(r) for r in records],
+                "meta": {"total": total, "page": page, "limit": limit},
+            }
+        ),
+        200,
+    )
 
 
 @bp.post("/products/<int:id>/validate")
@@ -208,56 +241,68 @@ def validate_product(id: int) -> Tuple[Response, int]:
 
     errors = []
     # 必須（出荷ブロッカー）
-    required_fields = ["description_en", "origin_country", "processing_state", "physical_form", "unit_weight_g"]
+    required_fields = [
+        "description_en",
+        "origin_country",
+        "processing_state",
+        "physical_form",
+        "unit_weight_g",
+    ]
     for field in required_fields:
-        if not getattr(record, field) and getattr(record, field) is not False: # allow is_food=False
-             errors.append({
-                 "field": field,
-                 "message": f"Missing required field: {field}",
-                 "severity": "block"
-             })
+        if (
+            not getattr(record, field) and getattr(record, field) is not False
+        ):  # allow is_food=False
+            errors.append(
+                {
+                    "field": field,
+                    "message": f"Missing required field: {field}",
+                    "severity": "block",
+                }
+            )
 
     # 準必須（欠けたらレビュー）
     warnings = []
     if record.is_food:
         if record.shelf_life_days is None:
-            warnings.append({
-                "field": "shelf_life_days",
-                "message": "Highly recommended for food products",
-                "severity": "review"
-            })
+            warnings.append(
+                {
+                    "field": "shelf_life_days",
+                    "message": "Highly recommended for food products",
+                    "severity": "review",
+                }
+            )
         if record.animal_derived_flags is None:
-             warnings.append({
-                 "field": "animal_derived_flags",
-                 "message": "Animal derived flags are required to determine food regulations",
-                 "severity": "review"
-             })
+            warnings.append(
+                {
+                    "field": "animal_derived_flags",
+                    "message": "Animal derived flags are required to determine food regulations",
+                    "severity": "review",
+                }
+            )
 
     response_data = {
         "valid": len(errors) == 0,
         "product_id": record.id,
         "errors": errors,
-        "warnings": warnings
+        "warnings": warnings,
     }
 
     if len(errors) == 0 and record.status == "draft":
         record.status = "ready"
         db.session.add(record)
-        
+
         # Enqueue HS Classification task (Phase 1.5)
         from app.models import Job
+
         trace_id = request.headers.get("X-Trace-Id") or str(uuid.uuid4())
         job = Job(
             type="hs_classify",
             status="queued",
-            payload_json={
-                "product_id": record.id,
-                "event_type": "PRODUCT_READY"
-            },
-            trace_id=trace_id
+            payload_json={"product_id": record.id, "event_type": "PRODUCT_READY"},
+            trace_id=trace_id,
         )
         db.session.add(job)
-        
+
         db.session.commit()
 
     trace_id = request.headers.get("X-Trace-Id") or str(uuid.uuid4())

@@ -68,6 +68,7 @@ def create_app():
         # === Phase 1.5: API Middleware Logging & Masking ===
         if request.path.startswith("/v1/") and request.method != "OPTIONS":
             from app.audit import log_event
+
             req_body = None
             try:
                 # view_function 実行後なのでストリーム枯渇は起きず安全に読める
@@ -77,11 +78,14 @@ def create_app():
                     if isinstance(req_body, dict):
                         for k in list(req_body.keys()):
                             # PII / Secret MASKING
-                            if any(sub in k.lower() for sub in ["password", "secret", "key", "token"]):
+                            if any(
+                                sub in k.lower()
+                                for sub in ["password", "secret", "key", "token"]
+                            ):
                                 req_body[k] = "***MASKED***"
             except Exception:
                 pass
-                
+
             try:
                 log_event(
                     trace_id=tid,
@@ -90,10 +94,11 @@ def create_app():
                     path=request.path,
                     method=request.method,
                     status_code=response.status_code,
-                    request_payload=req_body
+                    request_payload=req_body,
                 )
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).error(f"Audit middleware failed: {e}")
 
         return response
@@ -101,17 +106,21 @@ def create_app():
     @app.errorhandler(Exception)
     def handle_unhandled_exception(e):
         from werkzeug.exceptions import HTTPException
+
         if isinstance(e, HTTPException):
             return e
-            
+
         import traceback
         import logging
         from flask import jsonify
 
         tid = get_trace_id()
-        logging.getLogger(__name__).error(f"Unhandled exception [trace_id={tid}]: {e}\n{traceback.format_exc()}")
-        
+        logging.getLogger(__name__).error(
+            f"Unhandled exception [trace_id={tid}]: {e}\n{traceback.format_exc()}"
+        )
+
         from app.audit import log_event
+
         try:
             log_event(
                 trace_id=tid,
@@ -120,11 +129,11 @@ def create_app():
                 path=request.path,
                 method=request.method,
                 status_code=500,
-                error=str(e)
+                error=str(e),
             )
         except Exception:
             pass
-            
+
         return jsonify({"error": "Internal Server Error", "trace_id": tid}), 500
 
     @app.teardown_request

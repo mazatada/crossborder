@@ -99,23 +99,30 @@ def test_compliance_without_jobs(client, api_key_header, db_session):
 
 
 def test_evaluate_compliance_missing_fields(client, api_key_header):
-    res = client.post("/v1/evaluate", json={"product_id": "123"}, headers=api_key_header)
+    res = client.post(
+        "/v1/evaluate", json={"product_id": "123"}, headers=api_key_header
+    )
     assert res.status_code == 400
 
 
 def test_evaluate_compliance_us_food(client, api_key_header, db_session):
     from app.models import Product
+
     p = Product(title="US Food", is_food=True, status="ready")
     db_session.add(p)
     db_session.commit()
-    
-    res = client.post("/v1/evaluate", json={
-        "product_id": p.id,
-        "destination_country": "US",
-        "shipping_mode": "postal",
-        "incoterm": "DDU"
-    }, headers=api_key_header)
-    
+
+    res = client.post(
+        "/v1/evaluate",
+        json={
+            "product_id": p.id,
+            "destination_country": "US",
+            "shipping_mode": "postal",
+            "incoterm": "DDU",
+        },
+        headers=api_key_header,
+    )
+
     assert res.status_code == 200
     data = res.get_json()
     assert data["allowed"] is True
@@ -127,17 +134,22 @@ def test_evaluate_compliance_us_food(client, api_key_header, db_session):
 
 def test_evaluate_compliance_ddp_postal_block(client, api_key_header, db_session):
     from app.models import Product
+
     p = Product(title="Regular item", is_food=False, status="ready")
     db_session.add(p)
     db_session.commit()
-    
-    res = client.post("/v1/evaluate", json={
-        "product_id": p.id,
-        "destination_country": "JP",
-        "shipping_mode": "postal",
-        "incoterm": "DDP"
-    }, headers=api_key_header)
-    
+
+    res = client.post(
+        "/v1/evaluate",
+        json={
+            "product_id": p.id,
+            "destination_country": "JP",
+            "shipping_mode": "postal",
+            "incoterm": "DDP",
+        },
+        headers=api_key_header,
+    )
+
     assert res.status_code == 200
     data = res.get_json()
     assert data["allowed"] is False
@@ -146,18 +158,35 @@ def test_evaluate_compliance_ddp_postal_block(client, api_key_header, db_session
 
 def test_evaluate_compliance_validation_errors(client, api_key_header, db_session):
     from app.models import Product
+
     p = Product(title="Test", is_food=False, status="ready")
     db_session.add(p)
     db_session.commit()
-    
+
     # Invalid country length
-    res1 = client.post("/v1/evaluate", json={"product_id": p.id, "destination_country": "USA"}, headers=api_key_header)
+    res1 = client.post(
+        "/v1/evaluate",
+        json={"product_id": p.id, "destination_country": "USA"},
+        headers=api_key_header,
+    )
     assert res1.status_code == 400
-    
+
     # Invalid country characters
-    res2 = client.post("/v1/evaluate", json={"product_id": p.id, "destination_country": "J1"}, headers=api_key_header)
+    res2 = client.post(
+        "/v1/evaluate",
+        json={"product_id": p.id, "destination_country": "J1"},
+        headers=api_key_header,
+    )
     assert res2.status_code == 400
-    
+
     # Invalid shipping mode
-    res3 = client.post("/v1/evaluate", json={"product_id": p.id, "destination_country": "JP", "shipping_mode": "postel"}, headers=api_key_header)
+    res3 = client.post(
+        "/v1/evaluate",
+        json={
+            "product_id": p.id,
+            "destination_country": "JP",
+            "shipping_mode": "postel",
+        },
+        headers=api_key_header,
+    )
     assert res3.status_code == 400
