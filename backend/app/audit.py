@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.audit_events (
   trace_id     TEXT,
   event        TEXT NOT NULL,
   target_type  TEXT,
-  target_id    BIGINT,
+  target_id    TEXT,
   details_json JSONB
 );
 """

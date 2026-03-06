@@ -70,7 +70,7 @@ rules:
     hs_code: "2106.90"
     description: "Food preparations not elsewhere specified or included"
     priority: 5
-    weight: 0.5
+    weight: 0.9
     required_uom: "kg"
     requires_review: true  # 必ず人間レビュー
     effect: "include"

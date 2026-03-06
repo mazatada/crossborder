@@ -69,7 +69,7 @@ class HSExplainer:
             )
 
         # 3. 成分に基づく説明
-        ingredients = product_data.get("ingredients", [])
+        ingredients = product_data.get("ingredients") or []
         for ing in ingredients:
             if isinstance(ing, dict):
                 ing_id = ing.get("id")
@@ -88,7 +88,7 @@ class HSExplainer:
                 # 特定の成分が含まれていること自体が重要な場合（ここでは簡易的に全てリスト化しないが、マッチしたルールに関係あるものを出すのが理想。今回は主要成分のみ）
 
         # 4. 加工方法に基づく説明
-        processes = product_data.get("process", [])
+        processes = product_data.get("process") or []
         for proc in processes:
             explanations.append(
                 {

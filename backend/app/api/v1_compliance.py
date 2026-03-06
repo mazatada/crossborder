@@ -101,3 +101,95 @@ def get_compliance(product_id: str) -> Tuple[Response, int]:
         },
     }
     return jsonify(response), 200
+
+
+@bp.post("/evaluate")
+@require_api_key
+def evaluate_compliance() -> Tuple[Response, int]:
+    from flask import request
+
+    data = request.get_json(silent=True) or {}
+    product_id = data.get("product_id")
+    destination_country = data.get("destination_country")
+    shipping_mode = data.get("shipping_mode")
+    incoterm = data.get("incoterm")
+
+    if getattr(product_id, "__class__", None) not in (int, str) or not isinstance(
+        destination_country, str
+    ):
+        return (
+            jsonify(
+                {"error": "Missing required fields: product_id, destination_country"}
+            ),
+            400,
+        )
+
+    # Enum / Format 厳格バリデーション (Phase 1 hotfix)
+    if len(destination_country) != 2 or not destination_country.isalpha():
+        return (
+            jsonify(
+                {
+                    "error": "Invalid field: destination_country must be a 2-letter ISO code"
+                }
+            ),
+            400,
+        )
+    destination_country = destination_country.upper()
+
+    if shipping_mode and shipping_mode not in ["postal", "courier"]:
+        return (
+            jsonify(
+                {"error": "Invalid field: shipping_mode must be 'postal' or 'courier'"}
+            ),
+            400,
+        )
+
+    from app.models import Product
+
+    product = db.session.get(Product, product_id)
+    if not product:
+        return jsonify({"error": "Product not found"}), 404
+
+    allowed = True
+    block_reasons = []
+    required_codes: list[str] = []
+    required_fields: list[str] = []
+    notes = []
+
+    # 簡易的なハードコードルール評価（MVPフェーズ用）
+    if destination_country.upper() == "US":
+        if product.is_food:
+            notes.append("FDA Prior Notice is required for US food imports")
+            required_codes.extend(
+                ["fda_product_code", "fda_facility_registration_number"]
+            )
+            if shipping_mode == "postal":
+                notes.append("Postal shipping for food to US may experience delays")
+
+    # 例: 特定のインコタームズや配送モードの組み合わせブロック
+    if incoterm == "DDP" and shipping_mode == "postal":
+        allowed = False
+        block_reasons.append("DDP is not generally supported for postal shipping")
+
+    # 英国(GB)やEUへのDDPでの税務要件
+    if (
+        destination_country.upper() in ["GB", "FR", "DE", "IT", "ES", "NL"]
+        and incoterm == "DDP"
+    ):
+        notes.append(
+            f"VAT registration may be required for DDP to {destination_country.upper()}"
+        )
+        required_codes.append("vat_number")
+
+    return (
+        jsonify(
+            {
+                "allowed": allowed,
+                "block_reasons": block_reasons,
+                "required_codes": required_codes,
+                "required_fields": required_fields,
+                "notes": notes,
+            }
+        ),
+        200,
+    )
