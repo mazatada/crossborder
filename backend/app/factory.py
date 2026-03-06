@@ -20,6 +20,7 @@ from app.api import (
     v1_hs_rules,
     v1_compliance,
     v1_products,
+    v1_shipments,
 )
 
 
@@ -177,4 +178,5 @@ def create_app():
     app.register_blueprint(v1_hs_rules.bp)
     app.register_blueprint(v1_compliance.bp)
     app.register_blueprint(v1_products.bp)
+    app.register_blueprint(v1_shipments.bp)
     return app

@@ -19,6 +19,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # Guard: check if target_id column exists; if not, skip (table was created
+    # with TEXT type already via CREATE_TABLE_SQL in audit.py).
+    conn = op.get_bind()
+    inspector = sa.inspect(conn)
+    columns = [c["name"] for c in inspector.get_columns("audit_events")]
+    if "target_id" not in columns:
+        # Column doesn't exist – nothing to alter
+        return
     # Use batch_alter_table to support SQLite as well as PostgreSQL
     with op.batch_alter_table('audit_events') as batch_op:
         batch_op.alter_column('target_id',

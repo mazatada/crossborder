@@ -233,6 +233,37 @@ class Shipment(Base):
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )  # type: ignore
 
+    lines = db.relationship("ShipmentLine", backref="shipment", lazy="dynamic")
+    exports = db.relationship("DocumentExport", backref="shipment", lazy="dynamic")
+
+    VALID_STATUSES = [
+        "draft",
+        "validated",
+        "generating",
+        "completed",
+        "failed",
+        "canceled",
+    ]
+
+    @validates("status")
+    def validate_status(self, key: str, value: str) -> str:
+        if value not in self.VALID_STATUSES:
+            raise ValueError(f"Invalid Shipment status: '{value}'")
+        if self.status:
+            allowed: dict[str, list[str]] = {
+                "draft": ["validated", "canceled"],
+                "validated": ["generating", "draft", "canceled"],
+                "generating": ["completed", "failed"],
+                "completed": [],
+                "failed": ["draft"],
+                "canceled": [],
+            }
+            if value not in allowed.get(self.status, []):
+                raise ValueError(
+                    f"Invalid Shipment state transition: {self.status} -> {value}"
+                )
+        return value
+
 
 class ShipmentLine(Base):
     __tablename__ = "shipment_lines"
@@ -243,6 +274,7 @@ class ShipmentLine(Base):
 
     qty: int = db.Column(db.Integer, nullable=False, default=1)  # type: ignore
     unit_price: float = db.Column(db.Float, nullable=False, default=0.0)  # type: ignore
+    currency: str = db.Column(db.String(3), nullable=False, default="USD")  # type: ignore
     line_value: float = db.Column(db.Float, nullable=False, default=0.0)  # type: ignore
     line_weight_g: int = db.Column(db.Integer, nullable=False, default=0)  # type: ignore
 
@@ -251,6 +283,7 @@ class ShipmentLine(Base):
     country_specific_code: Optional[str] = db.Column(db.String(32), nullable=True)  # type: ignore
     origin_country: str = db.Column(db.String(2), nullable=False)  # type: ignore
     description_en: Optional[str] = db.Column(db.Text, nullable=True)  # type: ignore
+    product_snapshot: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
 
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
 
@@ -262,6 +295,7 @@ class DocumentExport(Base):
     shipment_id: int = db.Column(db.Integer, db.ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False, index=True)  # type: ignore
     type: str = db.Column(db.String(32), nullable=False)  # type: ignore
     format: str = db.Column(db.String(16), nullable=False)  # type: ignore
+    s3_key: Optional[str] = db.Column(db.String(512), nullable=True)  # type: ignore
     storage_url: Optional[str] = db.Column(db.String(512), nullable=True)  # type: ignore
     schema_version: str = db.Column(db.String(16), nullable=False, default="1.0")  # type: ignore
     created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
