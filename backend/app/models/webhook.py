@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from sqlalchemy import func
 from ..db import db, Base
 
 
@@ -10,9 +11,9 @@ class WebhookEndpoint(Base):
     secret: str = db.Column(db.String(128), nullable=False)  # type: ignore
     events: List[str] = db.Column(db.JSON, nullable=False)  # type: ignore
     active: bool = db.Column(db.Boolean, default=True, nullable=False)  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
     updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )  # type: ignore
 
 
@@ -29,5 +30,5 @@ class WebhookDLQ(Base):
     last_error: Optional[str] = db.Column(db.Text, nullable=True)  # type: ignore
     last_status_code: Optional[int] = db.Column(db.Integer, nullable=True)  # type: ignore
     replayed: bool = db.Column(db.Boolean, default=False, nullable=False)  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
     expires_at: datetime = db.Column(db.DateTime, nullable=False, index=True)  # type: ignore

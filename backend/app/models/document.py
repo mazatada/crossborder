@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
+from sqlalchemy import func
 from ..db import db, Base
 
 
@@ -12,7 +13,7 @@ class PNSubmission(Base):
     importer: Dict[str, Any] = db.Column(db.JSON, nullable=False)  # type: ignore
     consignee: Dict[str, Any] = db.Column(db.JSON, nullable=False)  # type: ignore
     label_media_id: Optional[str] = db.Column(db.String(128), nullable=True)  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
 
 
 class DocumentPackage(Base):
@@ -23,4 +24,4 @@ class DocumentPackage(Base):
     required_uom: str = db.Column(db.String(8), nullable=False)  # type: ignore
     invoice_uom: str = db.Column(db.String(8), nullable=False)  # type: ignore
     invoice_payload: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, func
 from ..db import db, Base
 
 
@@ -12,4 +12,4 @@ class OrderStatus(Base):
     status: str = db.Column(db.String(32), nullable=False)  # type: ignore
     ts: datetime = db.Column(db.DateTime, nullable=False)  # type: ignore
     customer_region: Optional[str] = db.Column(db.String(64), nullable=True)  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore

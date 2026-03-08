@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from sqlalchemy import func
 from sqlalchemy.orm import validates
 from ..db import db, Base
 
@@ -20,9 +21,9 @@ class Shipment(Base):
     status: str = db.Column(db.String(32), nullable=False, default="draft")  # type: ignore
     validation_errors: Optional[List[Dict[str, Any]]] = db.Column(db.JSON, nullable=True)  # type: ignore
 
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
     updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )  # type: ignore
 
     lines = db.relationship("ShipmentLine", backref="shipment", lazy="dynamic")
@@ -77,7 +78,7 @@ class ShipmentLine(Base):
     description_en: Optional[str] = db.Column(db.Text, nullable=True)  # type: ignore
     product_snapshot: Optional[Dict[str, Any]] = db.Column(db.JSON, nullable=True)  # type: ignore
 
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
 
 
 class DocumentExport(Base):
@@ -90,4 +91,4 @@ class DocumentExport(Base):
     s3_key: Optional[str] = db.Column(db.String(512), nullable=True)  # type: ignore
     storage_url: Optional[str] = db.Column(db.String(512), nullable=True)  # type: ignore
     schema_version: str = db.Column(db.String(16), nullable=False, default="1.0")  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore

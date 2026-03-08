@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
+from sqlalchemy import func
 from ..db import db, Base
 
 
@@ -32,7 +33,7 @@ class Product(Base):
     )
 
     status: str = db.Column(db.String(32), nullable=False, default="draft")  # type: ignore
-    created_at: datetime = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # type: ignore
+    created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
     updated_at: datetime = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )  # type: ignore
