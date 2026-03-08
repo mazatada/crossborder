@@ -22,6 +22,7 @@ tags:
   - name: Compliance
   - name: Tariffs
   - name: Inbound
+  - name: Shipments
 
 paths:
   /v1/health:
@@ -413,6 +414,190 @@ paths:
               schema: { $ref: '#/components/schemas/ComplianceView' }
         '404':
           description: 該当IDなし
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/shipments:
+    post:
+      tags: [Shipments]
+      summary: 出荷作成
+      security:
+        - ApiKeyAuth: []
+      description: "Productを束ねたShipment（出荷）とShipmentLine（明細行）を作成します。全Productが 'ready' ステータスである必要があります。"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShipmentCreate' }
+      responses:
+        '201':
+          description: 作成成功
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShipmentWithLines' }
+        '400':
+          description: パラメータ不正（未準備のProductを含む等）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error400' }
+    get:
+      tags: [Shipments]
+      summary: 出荷一覧
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: per_page
+          required: false
+          schema: { type: integer, default: 20, maximum: 100 }
+        - in: query
+          name: status
+          required: false
+          schema: { type: string, enum: [draft, validated, generating, completed, failed, canceled] }
+      responses:
+        '200':
+          description: ページネーション付き一覧
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShipmentListResponse' }
+
+  /v1/shipments/{shipment_id}/validate:
+    post:
+      tags: [Shipments]
+      summary: 出荷バリデーション
+      security:
+        - ApiKeyAuth: []
+      description: "Shipment内の全Productが ready ステータスかつHS分類が確定済みであるかを検証します。食品の場合はFDA Prior Notice提出も確認します。"
+      parameters:
+        - in: path
+          name: shipment_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: バリデーション成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean, example: true }
+                  shipment: { $ref: '#/components/schemas/Shipment' }
+        '404':
+          description: 出荷が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+        '409':
+          description: 状態競合（draft以外でバリデーション不可）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error409' }
+        '422':
+          description: バリデーション失敗（エラー詳細付き）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid: { type: boolean, example: false }
+                  errors:
+                    type: array
+                    items: { $ref: '#/components/schemas/ShipmentValidationError' }
+
+  /v1/shipments/{shipment_id}/generate-docs:
+    post:
+      tags: [Shipments]
+      summary: 書類生成ジョブのエンキュー
+      security:
+        - ApiKeyAuth: []
+      description: "バリデーション通過済みのShipmentについて、非同期で通関書類を生成するジョブを発火します。"
+      parameters:
+        - in: path
+          name: shipment_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '202':
+          description: ジョブ受付
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: { type: integer }
+                  shipment_id: { type: integer }
+                  status: { type: string, example: generating }
+        '404':
+          description: 出荷が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+        '409':
+          description: 状態競合（validated以外/既にgenerating中）
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error409' }
+
+  /v1/shipments/{shipment_id}/exports:
+    get:
+      tags: [Shipments]
+      summary: 生成済みExport一覧
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - in: path
+          name: shipment_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: エクスポート一覧
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipment_id: { type: integer }
+                  exports:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentExportItem' }
+        '404':
+          description: 出荷が存在しない
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error404' }
+
+  /v1/shipments/{shipment_id}/exports/{export_id}/download:
+    get:
+      tags: [Shipments]
+      summary: Export ダウンロード（302リダイレクト）
+      security:
+        - ApiKeyAuth: []
+      description: "指定されたExportの実ファイルへリダイレクトします。本番環境ではS3 Presigned URLを生成します。ダウンロードの監査ログが記録されます。"
+      parameters:
+        - in: path
+          name: shipment_id
+          required: true
+          schema: { type: integer }
+        - in: path
+          name: export_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '302':
+          description: ファイルへのリダイレクト
+          headers:
+            Location:
+              description: ダウンロードURL（S3 Presigned URL等）
+              schema: { type: string, format: uri }
+        '404':
+          description: Export が存在しない
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error404' }
@@ -933,6 +1118,120 @@ components:
         ts:      { type: string, format: date-time }
         payload: {}
 
+
+    # ──── Shipment Domain Schemas ────
+
+    Shipment:
+      type: object
+      properties:
+        id: { type: integer }
+        order_ref: { type: string, nullable: true }
+        trace_id: { type: string, nullable: true }
+        destination_country: { type: string, description: "ISO 3166-1 alpha-2" }
+        shipping_mode: { type: string, enum: [air, sea, express] }
+        incoterm: { type: string, nullable: true }
+        currency: { type: string, example: USD }
+        total_value: { type: number, format: float, nullable: true }
+        total_weight_g: { type: integer, nullable: true }
+        status:
+          type: string
+          enum: [draft, validated, generating, completed, failed, canceled]
+        validation_errors:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/ShipmentValidationError' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ShipmentLine:
+      type: object
+      properties:
+        id: { type: integer }
+        product_id: { type: integer }
+        qty: { type: integer }
+        unit_price: { type: number, format: float }
+        currency: { type: string }
+        line_value: { type: number, format: float }
+        line_weight_g: { type: integer }
+        hs_base6: { type: string, nullable: true }
+        country_specific_code: { type: string, nullable: true }
+        origin_country: { type: string, nullable: true }
+        description_en: { type: string, nullable: true }
+
+    ShipmentWithLines:
+      allOf:
+        - $ref: '#/components/schemas/Shipment'
+        - type: object
+          properties:
+            lines:
+              type: array
+              items: { $ref: '#/components/schemas/ShipmentLine' }
+
+    ShipmentCreate:
+      type: object
+      required: [destination_country, shipping_mode, lines]
+      properties:
+        destination_country:
+          type: string
+          description: "ISO 3166-1 alpha-2"
+        shipping_mode:
+          type: string
+          enum: [air, sea, express]
+        order_ref: { type: string }
+        incoterm: { type: string, default: DDP }
+        currency: { type: string, default: USD }
+        lines:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ShipmentLineCreate' }
+
+    ShipmentLineCreate:
+      type: object
+      required: [product_id, qty, unit_price]
+      properties:
+        product_id: { type: integer }
+        qty: { type: integer, minimum: 1 }
+        unit_price: { type: number, format: float }
+        currency: { type: string }
+
+    ShipmentListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Shipment' }
+        total: { type: integer }
+        page: { type: integer }
+        per_page: { type: integer }
+
+    ShipmentValidationError:
+      type: object
+      properties:
+        line_id: { type: integer }
+        product_id: { type: integer, nullable: true }
+        error: { type: string }
+
+    ProductSnapshot:
+      type: object
+      description: "出荷時点のProduct情報の凍結コピー。監査証跡用。"
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        origin_country: { type: string }
+        is_food: { type: boolean }
+        hs_base6: { type: string, nullable: true }
+        unit_weight_g: { type: number, nullable: true }
+        description_en: { type: string, nullable: true }
+
+    DocumentExportItem:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string, description: "export type, e.g. invoice or packing_list" }
+        format: { type: string, description: "file format, e.g. json or csv" }
+        schema_version: { type: string, nullable: true }
+        download_url: { type: string, format: uri }
+        created_at: { type: string, format: date-time }
 
     Error404:
       type: object
