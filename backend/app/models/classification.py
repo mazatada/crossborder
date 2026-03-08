@@ -51,21 +51,25 @@ class HSClassification(Base):
     def __repr__(self) -> str:
         return f"<HSClassification {self.id} hs={self.final_hs_code} trace={self.trace_id}>"
 
+    # ステータス遷移の順序定義（クラスレベルで定義して効率化）
+    _STATUS_ORDER = {
+        "pending": 0,
+        "in_progress": 1,
+        "classified": 1,
+        "locked": 2,
+        "reviewed": 3,
+        "superseded": 4,
+    }
+
     @validates("status")
     def validate_status(self, key, value):
+        new_rank = self._STATUS_ORDER.get(value, -1)
+        if new_rank == -1:
+            raise ValueError(f"Invalid state: '{value}' is an unrecognized status")
+
+        # 既存ステータスがある場合のみ遷移チェック
         if self.status:
-            order = {
-                "pending": 0,
-                "in_progress": 1,
-                "classified": 1,
-                "locked": 2,
-                "reviewed": 3,
-                "superseded": 4,
-            }
-            old_rank = order.get(self.status, -1)
-            new_rank = order.get(value, -1)
-            if new_rank == -1:
-                raise ValueError(f"Invalid state: '{value}' is an unrecognized status")
+            old_rank = self._STATUS_ORDER.get(self.status, -1)
             if old_rank > new_rank and old_rank != -1:
                 raise ValueError(
                     f"Invalid state transition from {self.status} to {value}"

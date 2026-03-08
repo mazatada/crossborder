@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import func
+from sqlalchemy import func, Numeric
 from sqlalchemy.orm import validates
 from ..db import db, Base
 
@@ -15,7 +15,7 @@ class Shipment(Base):
     shipping_mode: str = db.Column(db.String(32), nullable=False)  # type: ignore
     incoterm: str = db.Column(db.String(8), nullable=False, default="DDP")  # type: ignore
     currency: str = db.Column(db.String(3), nullable=False, default="USD")  # type: ignore
-    total_value: float = db.Column(db.Float, nullable=False, default=0.0)  # type: ignore
+    total_value = db.Column(Numeric(12, 2), nullable=False, default=0.0)  # type: ignore
     total_weight_g: int = db.Column(db.Integer, nullable=False, default=0)  # type: ignore
 
     status: str = db.Column(db.String(32), nullable=False, default="draft")  # type: ignore
@@ -42,7 +42,7 @@ class Shipment(Base):
     def validate_status(self, key: str, value: str) -> str:
         if value not in self.VALID_STATUSES:
             raise ValueError(f"Invalid Shipment status: '{value}'")
-        if self.status:
+        if self.status and self.status != value:
             allowed: dict[str, list[str]] = {
                 "draft": ["validated", "canceled"],
                 "validated": ["generating", "draft", "canceled"],
@@ -66,9 +66,9 @@ class ShipmentLine(Base):
     product_id: Optional[int] = db.Column(db.Integer, db.ForeignKey("products.id", ondelete="SET NULL"), nullable=True, index=True)  # type: ignore
 
     qty: int = db.Column(db.Integer, nullable=False, default=1)  # type: ignore
-    unit_price: float = db.Column(db.Float, nullable=False, default=0.0)  # type: ignore
+    unit_price = db.Column(Numeric(12, 2), nullable=False, default=0.0)  # type: ignore
     currency: str = db.Column(db.String(3), nullable=False, default="USD")  # type: ignore
-    line_value: float = db.Column(db.Float, nullable=False, default=0.0)  # type: ignore
+    line_value = db.Column(Numeric(12, 2), nullable=False, default=0.0)  # type: ignore
     line_weight_g: int = db.Column(db.Integer, nullable=False, default=0)  # type: ignore
 
     # Snapshot fields (frozen copy at time of shipment creation to prevent audit desync)

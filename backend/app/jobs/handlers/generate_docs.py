@@ -51,9 +51,13 @@ def handle(payload: dict, *, job_id: int, trace_id: str) -> dict:
                     "hs_code": sl.hs_base6 or "",
                     "country_specific_code": sl.country_specific_code or "",
                     "quantity": sl.qty,
-                    "unit_price": sl.unit_price,
+                    "unit_price": (
+                        float(sl.unit_price) if sl.unit_price is not None else 0.0
+                    ),
                     "currency": sl.currency,
-                    "line_value": sl.line_value,
+                    "line_value": (
+                        float(sl.line_value) if sl.line_value is not None else 0.0
+                    ),
                     "weight_g": sl.line_weight_g,
                 }
             )
@@ -65,7 +69,9 @@ def handle(payload: dict, *, job_id: int, trace_id: str) -> dict:
             "shipping_mode": shipment.shipping_mode,
             "incoterm": shipment.incoterm,
             "total_weight_g": shipment.total_weight_g,
-            "total_value": shipment.total_value,
+            "total_value": (
+                float(shipment.total_value) if shipment.total_value is not None else 0.0
+            ),
             "currency": shipment.currency,
             "lines": [
                 {
