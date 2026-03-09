@@ -14,6 +14,7 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 from app.db import db
 from app.auth import require_api_key
+from app.middleware.idempotency import require_idempotency_key
 from app.audit import log_event
 from app.logging_conf import get_trace_id
 
@@ -57,6 +58,7 @@ def _serialize_line(line) -> dict:  # type: ignore
 # ──────────────── POST /v1/shipments ────────────────
 @bp.route("/v1/shipments", methods=["POST"])
 @require_api_key
+@require_idempotency_key
 def create_shipment():
     from app.models import Shipment, ShipmentLine, Product
 

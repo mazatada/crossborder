@@ -12,6 +12,7 @@ from .order import OrderStatus  # noqa: F401
 from .classification import HSClassification  # noqa: F401
 from .product import Product  # noqa: F401
 from .shipment import Shipment, ShipmentLine, DocumentExport  # noqa: F401
+from .idempotency import IdempotencyRecord  # noqa: F401
 
 __all__ = [
     "Job",
@@ -28,4 +29,5 @@ __all__ = [
     "Shipment",
     "ShipmentLine",
     "DocumentExport",
+    "IdempotencyRecord",
 ]

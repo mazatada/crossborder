@@ -3,6 +3,7 @@ from sqlalchemy import func
 from app.db import db
 from app.models import Job
 from app.audit import record_event
+from app.middleware.idempotency import require_idempotency_key
 import traceback
 import logging
 
@@ -12,6 +13,7 @@ bp = Blueprint("v1_docs", __name__, url_prefix="/v1")
 
 
 @bp.post("/docs/clearance-pack")
+@require_idempotency_key
 def docs_clearance_pack():
     data = request.get_json(silent=True) or {}
     trace_id = data.get("traceId")

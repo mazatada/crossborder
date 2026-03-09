@@ -1,6 +1,13 @@
 # tests/test_api_shipments.py
 """Tests for Phase 2 Shipment API endpoints."""
 
+import uuid
+
+
+def _idem_header(api_key_header):
+    """Helper: merge api_key_header with a unique Idempotency-Key."""
+    return {**api_key_header, "Idempotency-Key": f"test-ship-{uuid.uuid4().hex[:8]}"}
+
 
 def _create_ready_product(client, api_key_header, title="Test Product"):
     """Helper: create and validate a product to 'ready' status."""
@@ -38,7 +45,7 @@ class TestCreateShipment:
                     {"product_id": pid, "qty": 2, "unit_price": 10.0},
                 ],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         assert resp.status_code == 201
         data = resp.get_json()
@@ -52,7 +59,7 @@ class TestCreateShipment:
         resp = client.post(
             "/v1/shipments",
             json={},
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         assert resp.status_code == 400
 
@@ -64,7 +71,7 @@ class TestCreateShipment:
                 "shipping_mode": "air",
                 "lines": [{"product_id": 99999, "qty": 1, "unit_price": 5.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         assert resp.status_code == 400
         assert "not found" in resp.get_json()["error"]
@@ -88,7 +95,7 @@ class TestCreateShipment:
                 "shipping_mode": "sea",
                 "lines": [{"product_id": pid, "qty": 1, "unit_price": 5.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         assert resp.status_code == 400
         assert "ready" in resp.get_json()["error"]
@@ -112,7 +119,7 @@ class TestListShipments:
                     "shipping_mode": "air",
                     "lines": [{"product_id": pid, "qty": 1, "unit_price": 1.0}],
                 },
-                headers=api_key_header,
+                headers=_idem_header(api_key_header),
             )
         resp = client.get("/v1/shipments?page=1&per_page=2", headers=api_key_header)
         assert resp.status_code == 200
@@ -131,7 +138,7 @@ class TestValidateShipment:
                 "shipping_mode": "air",
                 "lines": [{"product_id": pid, "qty": 1, "unit_price": 10.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         sid = ship.get_json()["id"]
         resp = client.post(f"/v1/shipments/{sid}/validate", headers=api_key_header)
@@ -153,7 +160,7 @@ class TestGenerateDocs:
                 "shipping_mode": "air",
                 "lines": [{"product_id": pid, "qty": 1, "unit_price": 10.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         sid = ship.get_json()["id"]
         resp = client.post(f"/v1/shipments/{sid}/generate-docs", headers=api_key_header)
@@ -171,7 +178,7 @@ class TestExports:
                 "shipping_mode": "air",
                 "lines": [{"product_id": pid, "qty": 1, "unit_price": 10.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         sid = ship.get_json()["id"]
         resp = client.get(f"/v1/shipments/{sid}/exports", headers=api_key_header)
@@ -188,7 +195,7 @@ class TestExports:
                 "shipping_mode": "air",
                 "lines": [{"product_id": pid, "qty": 1, "unit_price": 10.0}],
             },
-            headers=api_key_header,
+            headers=_idem_header(api_key_header),
         )
         sid = ship.get_json()["id"]
         resp = client.get(
