@@ -94,6 +94,20 @@ def upgrade() -> None:
         existing_nullable=False,
     )
 
+    # --- Fix: add FK constraint on pn_submissions.label_media_id ---
+    op.create_foreign_key(
+        "fk_pn_submissions_label_media_id",
+        "pn_submissions",
+        "media_blobs",
+        ["label_media_id"],
+        ["media_id"],
+    )
+    op.create_index(
+        "ix_pn_submissions_label_media_id",
+        "pn_submissions",
+        ["label_media_id"],
+    )
+
 
 def downgrade() -> None:
     """Downgrade schema.
@@ -104,6 +118,12 @@ def downgrade() -> None:
       オーバーフローエラーが発生します。事前確認クエリ:
         SELECT COUNT(*) FROM media_blobs WHERE size > 2147483647;
     """
+    # --- Remove FK constraint and index on pn_submissions.label_media_id ---
+    op.drop_index("ix_pn_submissions_label_media_id", table_name="pn_submissions")
+    op.drop_constraint(
+        "fk_pn_submissions_label_media_id", "pn_submissions", type_="foreignkey"
+    )
+
     op.alter_column(
         "shipments",
         "total_value",
