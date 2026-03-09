@@ -64,6 +64,9 @@ test.describe("backend API smoke", () => {
 		const hs_code = classifyBody.hs_candidates?.[0]?.code ?? "1905.90";
 
 		const docsResp = await request.post("/v1/docs/clearance-pack", {
+			headers: {
+				"Idempotency-Key": `pw-docs-${traceId}`,
+			},
 			data: {
 				traceId,
 				hs_code,
