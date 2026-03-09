@@ -4,6 +4,7 @@ Revision ID: 20260106130000
 Revises: 20251231141500
 Create Date: 2026-01-06 13:00:00
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -21,11 +22,15 @@ def upgrade():
     )
     op.add_column(
         "hs_classifications",
-        sa.Column("status", sa.String(length=16), nullable=True, server_default="classified"),
+        sa.Column(
+            "status", sa.String(length=16), nullable=True, server_default="classified"
+        ),
     )
     op.add_column(
         "hs_classifications",
-        sa.Column("final_source", sa.String(length=32), nullable=True, server_default="system"),
+        sa.Column(
+            "final_source", sa.String(length=32), nullable=True, server_default="system"
+        ),
     )
     op.add_column(
         "hs_classifications",
@@ -41,7 +46,9 @@ def upgrade():
     )
     op.add_column(
         "hs_classifications",
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")
+        ),
     )
 
 

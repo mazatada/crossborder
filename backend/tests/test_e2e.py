@@ -77,7 +77,7 @@ def test_complete_crossborder_flow(client, api_key_header):
             "invoice_data": {"quantity": 10, "unit": "pieces", "value": 5000},
             "traceId": trace_id,
         },
-        headers=api_key_header,
+        headers={**api_key_header, "Idempotency-Key": f"e2e-docs-{trace_id}"},
     )
 
     if docs_resp.status_code != 202:

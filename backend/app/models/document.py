@@ -12,7 +12,7 @@ class PNSubmission(Base):
     logistics: Dict[str, Any] = db.Column(db.JSON, nullable=False)  # type: ignore
     importer: Dict[str, Any] = db.Column(db.JSON, nullable=False)  # type: ignore
     consignee: Dict[str, Any] = db.Column(db.JSON, nullable=False)  # type: ignore
-    label_media_id: Optional[str] = db.Column(db.String(128), nullable=True)  # type: ignore
+    label_media_id: Optional[str] = db.Column(db.String(128), db.ForeignKey("media_blobs.media_id"), nullable=True)  # type: ignore
     created_at: datetime = db.Column(db.DateTime, server_default=func.now(), nullable=False)  # type: ignore
 
 

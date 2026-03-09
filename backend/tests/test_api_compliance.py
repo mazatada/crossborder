@@ -38,7 +38,7 @@ def test_compliance_view(client, api_key_header, db_session):
             "required_uom": record.required_uom,
             "invoice_uom": record.required_uom,
         },
-        headers=api_key_header,
+        headers={**api_key_header, "Idempotency-Key": f"compliance-docs-{trace_id}"},
     )
     assert resp.status_code == 202
 

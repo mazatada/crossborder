@@ -15,18 +15,34 @@ if db_url:
 
 target_metadata = None  # 自動生成しない運用（スクリプトで明示的に書く想定）
 
+# autogenerate 対応: モデルの MetaData を読み込む
+try:
+    from app.models import *  # noqa: F401,F403
+    from app.db import Base
+
+    target_metadata = Base.metadata
+except ImportError as e:
+    logging.warning("モデルのインポートに失敗しました。autogenerate は無効です: %s", e)
+
+
 def run_migrations_offline():
     url = config.get_main_option("sqlalchemy.url")
     context.configure(url=url, literal_binds=True)
     with context.begin_transaction():
         context.run_migrations()
 
+
 def run_migrations_online():
-    connectable = engine_from_config(config.get_section(config.config_ini_section), prefix="sqlalchemy.", poolclass=pool.NullPool)
+    connectable = engine_from_config(
+        config.get_section(config.config_ini_section),
+        prefix="sqlalchemy.",
+        poolclass=pool.NullPool,
+    )
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     run_migrations_offline()

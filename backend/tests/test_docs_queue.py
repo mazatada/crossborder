@@ -14,7 +14,11 @@ def test_docs_clearance_pack_queues_job(client, monkeypatch):
         "required_uom": "kg",
         "invoice_uom": "kg",
     }
-    response = client.post("/v1/docs/clearance-pack", json=payload)
+    response = client.post(
+        "/v1/docs/clearance-pack",
+        headers={"Idempotency-Key": "test-docs-queue-001"},
+        json=payload,
+    )
     assert response.status_code == 202
     data = response.get_json()
     assert data["status"] == "queued"
@@ -42,7 +46,11 @@ def test_docs_clearance_pack_records_event_and_trace_id(client, monkeypatch):
         "invoice_uom": "kg",
         "invoice_payload": {"lines": [{"sku": "ABC", "qty": 1}]},
     }
-    response = client.post("/v1/docs/clearance-pack", json=payload)
+    response = client.post(
+        "/v1/docs/clearance-pack",
+        headers={"Idempotency-Key": "test-docs-queue-002"},
+        json=payload,
+    )
     assert response.status_code == 202
     job_id = response.get_json()["job_id"]
 
@@ -60,7 +68,11 @@ def test_docs_clearance_pack_records_event_and_trace_id(client, monkeypatch):
 
 @pytest.mark.integration
 def test_docs_clearance_pack_rejects_missing_fields(client):
-    response = client.post("/v1/docs/clearance-pack", json={})
+    response = client.post(
+        "/v1/docs/clearance-pack",
+        headers={"Idempotency-Key": "test-docs-queue-003"},
+        json={},
+    )
     assert response.status_code == 400
     payload = response.get_json()
     assert payload["error"]["code"] == "INVALID_ARGUMENT"
