@@ -4,6 +4,7 @@ Revision ID: 20251231141000
 Revises: 95f75de98be3
 Create Date: 2025-12-31 14:10:00
 """
+
 from alembic import op
 import sqlalchemy as sa
 
@@ -23,8 +24,12 @@ def upgrade():
         sa.Column("secret", sa.String(length=128), nullable=False),
         sa.Column("events", sa.JSON(), nullable=False),
         sa.Column("active", sa.Boolean(), nullable=False, server_default="true"),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
 
@@ -35,10 +40,14 @@ def upgrade():
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("ts", sa.DateTime(), nullable=False),
         sa.Column("customer_region", sa.String(length=64), nullable=True),
-        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index(op.f("ix_order_statuses_order_id"), "order_statuses", ["order_id"], unique=False)
+    op.create_index(
+        op.f("ix_order_statuses_order_id"), "order_statuses", ["order_id"], unique=False
+    )
 
 
 def downgrade():

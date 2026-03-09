@@ -24,6 +24,7 @@ import logging
 from typing import Optional
 
 from flask import request, jsonify
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def require_idempotency_key(f):  # type: ignore
         db.session.add(record)
         try:
             db.session.flush()
-        except Exception:
+        except IntegrityError:
             # Race condition: another request beat us (parallel INSERT)
             db.session.rollback()
             return (
@@ -132,8 +133,10 @@ def require_idempotency_key(f):  # type: ignore
                     body = resp_obj.get_json(silent=True)
                 elif hasattr(resp_obj, "json"):
                     body = resp_obj.json
+                elif hasattr(resp_obj, "get_data"):
+                    body = json.loads(resp_obj.get_data(as_text=True))
                 else:
-                    body = json.loads(str(resp_obj))
+                    body = None  # Unable to extract JSON body
             except Exception:
                 body = None
 
